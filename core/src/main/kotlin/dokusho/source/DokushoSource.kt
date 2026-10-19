@@ -3,6 +3,11 @@ package dokusho.source
 import android.util.Log
 import com.squareup.zstd.okio.zstdCompress
 import com.squareup.zstd.okio.zstdDecompress
+import dokusho.network.CacheControlInterceptor
+import dokusho.network.RateLimitInterceptor
+import dokusho.utils.applicationContext
+import dokusho.utils.firstInstanceOrNull
+import dokusho.utils.jsonInstance
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -11,11 +16,6 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.online.HttpSource
-import dokusho.network.CacheControlInterceptor
-import dokusho.network.RateLimitInterceptor
-import dokusho.utils.applicationContext
-import dokusho.utils.firstInstanceOrNull
-import dokusho.utils.jsonInstance
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

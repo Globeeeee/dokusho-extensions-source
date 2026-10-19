@@ -1,10 +1,10 @@
 package dokusho.lib.randomua
 
 import android.os.Looper
+import dokusho.utils.parseAs
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.await
-import dokusho.utils.parseAs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -70,7 +70,7 @@ internal fun getRandomUserAgent(
         .also { userAgent = it }
 }
 
-private const val UA_DB_URL = "https://dokusho.github.io/user-agents/user-agents.json"
+private const val UA_DB_URL = "https://keiyoushi.github.io/user-agents/user-agents.json"
 
 enum class UserAgentType {
     MOBILE,

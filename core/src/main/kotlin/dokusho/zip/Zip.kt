@@ -1,9 +1,9 @@
 package dokusho.zip
 
-import eu.kanade.tachiyomi.network.GET
 import dokusho.utils.readLongLittleEndian
 import dokusho.utils.readUIntLittleEndian
 import dokusho.utils.readUShortLittleEndian
+import eu.kanade.tachiyomi.network.GET
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request

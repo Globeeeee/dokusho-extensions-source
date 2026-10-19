@@ -1,6 +1,5 @@
 package dokusho.zip.coroutines
 
-import eu.kanade.tachiyomi.source.online.HttpSource
 import dokusho.network.DEFAULT_CACHE_CONTROL
 import dokusho.network.get
 import dokusho.zip.Entry
@@ -9,6 +8,7 @@ import dokusho.zip.ZipDirectory
 import dokusho.zip.dataRange
 import dokusho.zip.locateCentralDirectory
 import dokusho.zip.readEntry
+import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.CacheControl
 import okhttp3.Headers
 import okhttp3.OkHttpClient

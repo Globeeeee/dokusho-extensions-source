@@ -1,8 +1,8 @@
 package dokusho.network
 
 import android.webkit.CookieManager
-import eu.kanade.tachiyomi.source.online.HttpSource
 import dokusho.utils.firstInstanceOrNull
+import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient

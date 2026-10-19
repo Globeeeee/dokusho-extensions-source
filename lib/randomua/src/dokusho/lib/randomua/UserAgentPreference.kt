@@ -5,8 +5,8 @@ import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.source.online.HttpSource
 import dokusho.utils.getPreferences
+import eu.kanade.tachiyomi.source.online.HttpSource
 import okhttp3.Headers
 
 /**
