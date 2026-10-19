@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "NO_COLOR": "1",
+    "TERM": "dumb",
+    "GRADLE_OPTS": "-Dorg.gradle.console=plain -Dorg.gradle.logging.level=quiet"
+  },
+  "bashOutputMaxChars": 15000,
+  "plansDirectory": ".claude/plans",
+  "enabledMcpjsonServers": ["context7"],
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(./gradlew spotlessCheck*)",
+      "Bash(./gradlew spotlessApply*)",
+      "Bash(./gradlew :src:*:assembleDebug*)",
+      "Bash(./gradlew :src:*:lintRelease*)",
+      "Bash(./gradlew :lib-multisrc:*:lintRelease*)",
+      "Bash(./gradlew :lib:*:lintRelease*)",
+      "Bash(./gradlew :core:lintRelease*)",
+      "Bash(./gradlew :core:assembleRelease*)",
+      "Bash(./gradlew projects*)",
+      "Bash(./gradlew tasks*)",
+      "Bash(./gradlew --stop)",
+      "Bash(python3 ext-bootstrap.py --help*)",
+      "Bash(curl -sL*)",
+      "Bash(adb devices*)",
+      "Bash(adb logcat*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)",
+      "Bash(rg *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(sed -n *)",
+      "mcp__context7__*"
+    ],
+    "ask": [
+      "Bash(./gradlew :src:*:assembleRelease*)",
+      "Bash(./gradlew clean*)",
+      "Bash(python3 ext-bootstrap.py *)",
+      "Bash(adb install*)",
+      "Bash(adb uninstall*)",
+      "Bash(git push*)",
+      "Bash(gh release*)",
+      "Bash(gh workflow run*)",
+      "Bash(gh secret*)"
+    ],
+    "deny": [
+      "Read(**/build/**)",
+      "Edit(**/build/**)",
+      "Read(.gradle/**)",
+      "Read(.idea/**)",
+      "Read(**/*.jks)",
+      "Edit(**/*.jks)",
+      "Read(**/*.keystore)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-guard.sh\"",
+            "timeout": 20,
+            "statusMessage": "Checking for println, keystores and secrets"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push*)",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-guard.sh\"",
+            "timeout": 20,
+            "statusMessage": "Checking for println, keystores and secrets"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-kotlin-gate.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking changed Kotlin files"
+          }
+        ]
+      }
+    ]
+  },
+  "skillOverrides": {
+    "dataviz": "off",
+    "artifact-diagramming": "off",
+    "artifact-capabilities": "off",
+    "keybindings-help": "off",
+    "anthropic-skills:morning": "off",
+    "anthropic-skills:import-memory": "off",
+    "anthropic-skills:pptx": "off",
+    "claude-api": "off",
+    "artifact-design": "user-invocable-only",
+    "anthropic-skills:docs": "user-invocable-only",
+    "anthropic-skills:docx": "user-invocable-only",
+    "anthropic-skills:pdf": "user-invocable-only",
+    "anthropic-skills:xlsx": "user-invocable-only",
+    "anthropic-skills:google-workspace": "user-invocable-only",
+    "anthropic-skills:skill-creator": "user-invocable-only",
+    "workflow-authoring": "user-invocable-only",
+    "schedule": "user-invocable-only",
+    "loop": "user-invocable-only",
+    "update-config": "user-invocable-only",
+    "fewer-permission-prompts": "user-invocable-only"
+  }
+}

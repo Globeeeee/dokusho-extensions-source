@@ -1,0 +1,6 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": ["Dokusho","dokusho","Mihon","mihon","Tachiyomi","tachiyomi","tachiyomix","Keiyoushi","keiyoushi","kanade","Injekt","interactor","interactors","sqldelight","moko","Pdist","gradlew","logcat","println","Shizuku","scanlator","nomedia","tachibk","Webnovel","Wuxia","wuxiaworld","Globeeeee","signingkey","multisrc","KeiSource","jsoup","okhttp","Supertonic","LOTM","novelbin","royalroad","scribblehub","toplevel","cksum","Androidx","prefs","impls","Voyager","Metro"],
+  "ignorePaths": ["build/**", ".gradle/**", "**/*.pb", "docs/upstream/**", "i18n/**"]
+}

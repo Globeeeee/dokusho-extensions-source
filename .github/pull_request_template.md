@@ -1,11 +1,11 @@
+<!-- Which site, what changed, which pages you tested against. -->
+
 Checklist:
 
-- [ ] Updated `versionCode` value in `build.gradle.kts`
-- [ ] Updated `baseVersionCode` in `build.gradle.kts` (if updated multisrc theme code)
-- [ ] Referenced all related issues in the PR body (e.g. "Closes #xyz")
-- [ ] Set the `contentWarning` configuration in `build.gradle.kts` appropriately
-- [ ] Have not changed source names
-- [ ] Have explicitly kept the `id` if a source's name or language were changed
-- [ ] Have tested the modifications by compiling and running the extension through Android Studio
-- [ ] Have removed `web_hi_res_512.png` when adding a new extension
-- [ ] This PR is AI-assisted, I have reviewed the changes manually and confirmed they are not slop
+- [ ] `versionCode` bumped in `build.gradle.kts`
+- [ ] `baseVersionCode` bumped if a multisrc theme changed
+- [ ] `contentWarning` set
+- [ ] Source `id` kept if the name or language changed
+- [ ] Built, installed in Dokusho, listing and one chapter verified
+- [ ] Chapter HTML sanitized, no ads or watermark text
+- [ ] No login, paywall or locked-chapter shortcut

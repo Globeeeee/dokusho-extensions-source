@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "/Users/macbookpro/.nvm/versions/node/v22.21.1/bin/npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "env": { "PATH": "/Users/macbookpro/.nvm/versions/node/v22.21.1/bin:/usr/bin:/bin" }
+    }
+  }
+}

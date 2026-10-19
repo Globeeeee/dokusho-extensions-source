@@ -1,53 +1,44 @@
-# Keiyoushi Extensions
+# Dokusho extensions source
 
-### Please give the repo a :star:
+Source code of the web novel extensions for [Dokusho](https://github.com/Globeeeee/dokusho).
+Built with the [Keiyoushi](https://github.com/keiyoushi/extensions-source) extension toolchain.
 
-| Build                                                                                                                                                                               | Need Help?                                                                                                                                              |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [![CI](https://github.com/keiyoushi/extensions-source/actions/workflows/build_push.yml/badge.svg)](https://github.com/keiyoushi/extensions-source/actions/workflows/build_push.yml) | [![Discord](https://img.shields.io/discord/1193460528052453448.svg?label=discord&labelColor=7289da&color=2c2f33&style=flat)](https://discord.gg/3FbCpdKbdY) |
+Published index: [dokusho-extensions](https://github.com/Globeeeee/dokusho-extensions). Add
+this in the app under Settings → Browse → Extension repos:
 
-## Usage
-**If you are new to repository/extensions, please read the [Keiyoushi Getting Started guide](https://keiyoushi.github.io/docs/guides/getting-started#adding-the-extension-repo) first.**
+```
+https://github.com/Globeeeee/dokusho-extensions/raw/repo/index.pb
+```
 
-* You can add our repo by visiting the [Keiyoushi Website](https://keiyoushi.github.io/add-repo)
-* Otherwise, copy & paste the following URL: https://github.com/keiyoushi/extensions/raw/repo/index.pb
+## Layout
 
-## Requests
+```text
+src/<lang>/<name>/     one extension per module
+lib-multisrc/<theme>/  shared site themes
+lib/                   shared helpers
+core/                  KeiSource base class, network and parsing helpers
+compiler/              KSP processor that generates the source entry point and manifest
+gradle/build-logic/    convention plugins and the keiyoushi {} DSL
+```
 
-To request a new source or bug fix, [create an issue](https://github.com/keiyoushi/extensions-source/issues/new/choose).
+## Build one extension
 
-Please note that creating an issue does not mean that the source will be added or fixed in a timely
-fashion, because the work is volunteer-based. Some sources may also be impossible to do or prohibitively
-difficult to maintain.
+```bash
+./gradlew :src:en:<name>:assembleDebug
+adb install -r src/en/<name>/build/outputs/apk/debug/*.apk
+```
 
-If you would like to see a request fulfilled and have the necessary skills to do so, consider contributing!
-Issues are up-for-grabs for any developer if there is no assigned user already.
+Requires JDK 21 and the Android SDK.
 
-## Contributing
+## Plan and rules
 
-Contributions are welcome!
-
-Check out the repo's [issue backlog](https://github.com/keiyoushi/extensions-source/issues) for source requests and bug reports.
-
-## License
-
-    Copyright 2015 Javier Tomás
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+`docs/PLAN.md` for the site list and phases. `CLAUDE.md` and `.claude/` for agent rules.
 
 ## Disclaimer
 
-This project does not have any affiliation with the content providers available.
+Dokusho and its extensions are not affiliated with any content provider. Extensions only
+read pages the user could open in a browser; sites with accounts use the user's own login.
 
-This project is not affiliated with Mihon/Tachiyomi. Don't ask for help about these extensions at the
-official support means of Mihon/Tachiyomi. All credits to the codebase goes to the original contributors.
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).

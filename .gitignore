@@ -12,3 +12,11 @@ gen
 generated-src/
 .kotlin
 *.jks
+
+# Local only
+/local.properties
+/signingkey.jks
+.claude/settings.local.json
+.claude/plans/*
+!.claude/plans/README.md
+.history/
