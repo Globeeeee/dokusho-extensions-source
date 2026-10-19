@@ -1,11 +1,6 @@
 package app.dokusho.gradle.internal
 
-import org.gradle.accessors.dm.LibrariesForLibs
+// Lib 2.0 is the Dokusho text API, compiled against the local :extensions-lib stub module.
+internal val VALID_LIB_VERSIONS = listOf("2.0")
 
-// To support a new libVersion, add it here, map it in extensionsLib() and add a tachiyomi-lib-vXY catalog entry
-internal val VALID_LIB_VERSIONS = listOf("1.6")
-
-internal fun LibrariesForLibs.extensionsLib(libVersion: String) = when (libVersion) {
-    "1.6" -> tachiyomi.lib.v16
-    else -> error("libVersion $libVersion is not supported. Supported versions: $VALID_LIB_VERSIONS")
-}
+internal const val EXTENSIONS_LIB_PROJECT = ":extensions-lib"

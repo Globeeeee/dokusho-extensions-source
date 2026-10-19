@@ -1,13 +1,13 @@
-import com.android.build.api.dsl.LibraryExtension
 import app.dokusho.gradle.api.dsl.DokushoThemeExtension
+import app.dokusho.gradle.internal.EXTENSIONS_LIB_PROJECT
 import app.dokusho.gradle.internal.VALID_LIB_VERSIONS
 import app.dokusho.gradle.internal.extensions.alias
 import app.dokusho.gradle.internal.extensions.compileOnly
-import app.dokusho.gradle.internal.extensions.implementation
 import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.implementation
 import app.dokusho.gradle.internal.extensions.libs
 import app.dokusho.gradle.internal.extensions.plugins
-import app.dokusho.gradle.internal.extensionsLib
+import com.android.build.api.dsl.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -45,7 +45,7 @@ class ThemePlugin : Plugin<Project> {
 
         dependencies {
             compileOnly(libs.bundles.common)
-            compileOnly(dokusho.libVersion.flatMap { libs.extensionsLib(it) })
+            compileOnly(project(EXTENSIONS_LIB_PROJECT))
             implementation(project(":core"))
         }
 

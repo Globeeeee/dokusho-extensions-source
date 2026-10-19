@@ -1,3 +1,24 @@
+import app.dokusho.gradle.api.DeeplinkFilter
+import app.dokusho.gradle.api.dsl.DokushoExtension
+import app.dokusho.gradle.api.dsl.DokushoThemeExtension
+import app.dokusho.gradle.api.dsl.ExtensionDeeplink
+import app.dokusho.gradle.internal.EXTENSIONS_LIB_PROJECT
+import app.dokusho.gradle.internal.ExtensionMetadata
+import app.dokusho.gradle.internal.ResolvedSource
+import app.dokusho.gradle.internal.SourceMetadata
+import app.dokusho.gradle.internal.VALID_LIB_VERSIONS
+import app.dokusho.gradle.internal.extensions.alias
+import app.dokusho.gradle.internal.extensions.compileOnly
+import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.implementation
+import app.dokusho.gradle.internal.extensions.ksp
+import app.dokusho.gradle.internal.extensions.libs
+import app.dokusho.gradle.internal.extensions.plugins
+import app.dokusho.gradle.internal.toMetadata
+import app.dokusho.gradle.tasks.CreateExtensionJarTask
+import app.dokusho.gradle.tasks.GenerateManifestTask
+import app.dokusho.gradle.tasks.GenerateSourceInfoTask
+import app.dokusho.gradle.tasks.SignExtensionJarTask
 import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.dsl.ApplicationExtension
@@ -5,27 +26,6 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ScopedArtifacts
 import com.android.build.gradle.tasks.PackageAndroidArtifact
 import com.google.devtools.ksp.gradle.KspExtension
-import app.dokusho.gradle.api.DeeplinkFilter
-import app.dokusho.gradle.api.dsl.ExtensionDeeplink
-import app.dokusho.gradle.api.dsl.DokushoExtension
-import app.dokusho.gradle.api.dsl.DokushoThemeExtension
-import app.dokusho.gradle.internal.ExtensionMetadata
-import app.dokusho.gradle.internal.ResolvedSource
-import app.dokusho.gradle.internal.SourceMetadata
-import app.dokusho.gradle.internal.VALID_LIB_VERSIONS
-import app.dokusho.gradle.internal.extensions.alias
-import app.dokusho.gradle.internal.extensions.compileOnly
-import app.dokusho.gradle.internal.extensions.implementation
-import app.dokusho.gradle.internal.extensions.dok
-import app.dokusho.gradle.internal.extensions.ksp
-import app.dokusho.gradle.internal.extensions.libs
-import app.dokusho.gradle.internal.extensions.plugins
-import app.dokusho.gradle.internal.extensionsLib
-import app.dokusho.gradle.internal.toMetadata
-import app.dokusho.gradle.tasks.CreateExtensionJarTask
-import app.dokusho.gradle.tasks.GenerateManifestTask
-import app.dokusho.gradle.tasks.GenerateSourceInfoTask
-import app.dokusho.gradle.tasks.SignExtensionJarTask
 import kotlinx.serialization.json.Json
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -200,7 +200,7 @@ class ExtensionPlugin : Plugin<Project> {
                 variant.sources.manifests.addStaticManifestFile("AndroidManifest.xml")
                 variant.sources.manifests.addGeneratedManifestFile(manifestTask) { it.outputFile }
 
-                val filenameProvider = versionNameProvider.map { "tachiyomi-${pkgName.get()}-v$it" }
+                val filenameProvider = versionNameProvider.map { "dokusho-${pkgName.get()}-v$it" }
 
                 variant.outputs.forEach { output ->
                     output.versionCode.set(androidVersionCodeProvider)
@@ -251,7 +251,7 @@ class ExtensionPlugin : Plugin<Project> {
             addProvider("implementation", dokusho.theme.map { project(":lib-multisrc:$it") })
             implementation(project(":core"))
             compileOnly(libs.bundles.common)
-            compileOnly(dokusho.libVersion.flatMap { libs.extensionsLib(it) })
+            compileOnly(project(EXTENSIONS_LIB_PROJECT))
             ksp(project(":compiler"))
         }
 

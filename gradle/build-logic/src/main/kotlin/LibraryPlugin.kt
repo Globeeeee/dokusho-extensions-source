@@ -1,10 +1,10 @@
-import com.android.build.api.dsl.LibraryExtension
 import app.dokusho.gradle.internal.extensions.alias
 import app.dokusho.gradle.internal.extensions.compileOnly
-import app.dokusho.gradle.internal.extensions.implementation
 import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.implementation
 import app.dokusho.gradle.internal.extensions.libs
 import app.dokusho.gradle.internal.extensions.plugins
+import com.android.build.api.dsl.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -40,7 +40,7 @@ class LibraryPlugin : Plugin<Project> {
 
         dependencies {
             compileOnly(libs.bundles.common)
-            compileOnly(libs.tachiyomi.lib.v16)
+            compileOnly(project(":extensions-lib"))
             implementation(project(":core"))
         }
     }

@@ -8,6 +8,8 @@ import dokusho.network.RateLimitInterceptor
 import dokusho.utils.applicationContext
 import dokusho.utils.firstInstanceOrNull
 import dokusho.utils.jsonInstance
+import eu.kanade.tachiyomi.source.NovelSource
+import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -44,7 +46,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.days
 
-abstract class DokushoSource : HttpSource() {
+abstract class DokushoSource :
+    HttpSource(),
+    NovelSource {
 
     // make `headers` not lazy
     init {
@@ -431,13 +435,18 @@ abstract class DokushoSource : HttpSource() {
     override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
 
     /**
-     * Get the list of pages a chapter has. Pages should be returned
-     * in the expected order; the index is ignored.
+     * Get the text of a chapter as sanitized HTML. Return `ChapterContent(html = "", locked = true)`
+     * for a chapter the user's account cannot read; never fetch it from another site.
      *
      * @param chapter the chapter.
-     * @return the pages for the chapter.
+     * @return the chapter content.
      */
-    abstract override suspend fun getPageList(chapter: SChapter): List<Page>
+    abstract override suspend fun getChapterContent(chapter: SChapter): ChapterContent
+
+    /**
+     * Novel chapters have no page images.
+     */
+    override suspend fun getPageList(chapter: SChapter): List<Page> = emptyList()
 
     override fun imageRequest(page: Page): Request = Request.Builder()
         .url(page.imageUrl!!)

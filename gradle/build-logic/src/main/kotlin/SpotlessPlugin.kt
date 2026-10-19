@@ -1,9 +1,9 @@
-import com.diffplug.gradle.spotless.SpotlessExtension
-import com.diffplug.spotless.FormatterFunc
-import com.diffplug.spotless.FormatterStep
 import app.dokusho.gradle.internal.extensions.alias
 import app.dokusho.gradle.internal.extensions.libs
 import app.dokusho.gradle.internal.extensions.plugins
+import com.diffplug.gradle.spotless.SpotlessExtension
+import com.diffplug.spotless.FormatterFunc
+import com.diffplug.spotless.FormatterStep
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure

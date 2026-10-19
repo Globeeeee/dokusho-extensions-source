@@ -1,10 +1,10 @@
+import app.dokusho.gradle.internal.configurations.configureKotlin
+import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.spotlessTaskName
 import com.android.build.api.dsl.ApplicationDefaultConfig
 import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.dsl.DefaultConfig
 import com.android.build.api.dsl.LibraryDefaultConfig
-import app.dokusho.gradle.internal.configurations.configureKotlin
-import app.dokusho.gradle.internal.extensions.dok
-import app.dokusho.gradle.internal.extensions.spotlessTaskName
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
