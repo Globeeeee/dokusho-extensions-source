@@ -1,10 +1,10 @@
 import com.android.build.api.dsl.LibraryExtension
-import io.github.keiyoushi.gradle.internal.extensions.alias
-import io.github.keiyoushi.gradle.internal.extensions.compileOnly
-import io.github.keiyoushi.gradle.internal.extensions.implementation
-import io.github.keiyoushi.gradle.internal.extensions.kei
-import io.github.keiyoushi.gradle.internal.extensions.libs
-import io.github.keiyoushi.gradle.internal.extensions.plugins
+import app.dokusho.gradle.internal.extensions.alias
+import app.dokusho.gradle.internal.extensions.compileOnly
+import app.dokusho.gradle.internal.extensions.implementation
+import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.libs
+import app.dokusho.gradle.internal.extensions.plugins
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -17,12 +17,12 @@ class LibraryPlugin : Plugin<Project> {
             alias(libs.plugins.android.library)
             alias(libs.plugins.kotlin.serialization)
 
-            alias(kei.plugins.android.base)
-            alias(kei.plugins.spotless)
+            alias(dok.plugins.android.base)
+            alias(dok.plugins.spotless)
         }
 
         android {
-            namespace = "keiyoushi.lib.${project.name}"
+            namespace = "dokusho.lib.${project.name}"
 
             sourceSets {
                 named("main") {

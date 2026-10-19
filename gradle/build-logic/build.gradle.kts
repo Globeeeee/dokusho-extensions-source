@@ -36,7 +36,7 @@ dependencies {
 
     // These allow us to reference the dependency catalog inside our compiled plugins
     compileOnly(files(libs::class.java.superclass.protectionDomain.codeSource.location))
-    compileOnly(files(kei::class.java.superclass.protectionDomain.codeSource.location))
+    compileOnly(files(dok::class.java.superclass.protectionDomain.codeSource.location))
 }
 
 samWithReceiver {
@@ -46,23 +46,23 @@ samWithReceiver {
 gradlePlugin {
     plugins {
         register("android-base") {
-            id = kei.plugins.android.base.get().pluginId
+            id = dok.plugins.android.base.get().pluginId
             implementationClass = "AndroidBasePlugin"
         }
         register("extension") {
-            id = kei.plugins.extension.get().pluginId
+            id = dok.plugins.extension.get().pluginId
             implementationClass = "ExtensionPlugin"
         }
         register("library") {
-            id = kei.plugins.library.get().pluginId
+            id = dok.plugins.library.get().pluginId
             implementationClass = "LibraryPlugin"
         }
         register("spotless") {
-            id = kei.plugins.spotless.get().pluginId
+            id = dok.plugins.spotless.get().pluginId
             implementationClass = "SpotlessPlugin"
         }
         register("theme") {
-            id = kei.plugins.multisrc.get().pluginId
+            id = dok.plugins.multisrc.get().pluginId
             implementationClass = "ThemePlugin"
         }
     }

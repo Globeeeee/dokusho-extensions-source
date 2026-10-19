@@ -1,3 +1,3 @@
 plugins {
-    alias(kei.plugins.library)
+    alias(dok.plugins.library)
 }

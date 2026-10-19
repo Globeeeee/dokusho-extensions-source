@@ -2,6 +2,7 @@ import gzip
 import hashlib
 import html
 import json
+import os
 import math
 import sys
 import time
@@ -23,6 +24,11 @@ RELEASE_BASE_URL = f"https://github.com/{REPO_NAME}/releases/download"
 ASSET_LIMIT = 495  # Actual limit is 1000 but we upload 2 items per extension.
 UPLOAD_CHUNK_SIZE = 80
 UPLOAD_CHUNK_INTERVAL = 30
+
+# SHA-256 of the APK signing certificate, lowercase hex. Set as a repository variable.
+SIGNING_KEY_FINGERPRINT = os.environ.get("SIGNING_KEY_FINGERPRINT", "").strip().lower()
+if not SIGNING_KEY_FINGERPRINT:
+    sys.exit("SIGNING_KEY_FINGERPRINT is not set; the app would reject every extension in the index")
 
 to_delete: list[str] = json.loads(sys.argv[1])
 current_sha = sys.argv[2]
@@ -75,7 +81,7 @@ def get_icon_url(module: str, theme: str | None) -> str:
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
 
-for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
+for info_file in ARTIFACTS_DIR.glob("**/dokusho-source-info.json"):
     with info_file.open(encoding="utf-8") as f:
         info = json.load(f)
     package_name = info["packageName"]
@@ -191,10 +197,9 @@ final_extensions.sort(key=lambda ext: ext.packageName)
 index = index_pb2.Index(
     name="Dokusho",
     badgeLabel="DOK",
-    signingKey="9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+    signingKey=SIGNING_KEY_FINGERPRINT,
     contact=index_pb2.Contact(
         website="https://github.com/Globeeeee/dokusho",
-        discord="https://discord.gg/3FbCpdKbdY",
     ),
     extensionList=index_pb2.ExtensionList(extensions=final_extensions),
 )

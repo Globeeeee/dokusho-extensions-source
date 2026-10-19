@@ -1,9 +1,9 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.FormatterStep
-import io.github.keiyoushi.gradle.internal.extensions.alias
-import io.github.keiyoushi.gradle.internal.extensions.libs
-import io.github.keiyoushi.gradle.internal.extensions.plugins
+import app.dokusho.gradle.internal.extensions.alias
+import app.dokusho.gradle.internal.extensions.libs
+import app.dokusho.gradle.internal.extensions.plugins
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -62,8 +62,8 @@ private fun Project.spotless(block: SpotlessExtension.() -> Unit) {
 private class RandomUAChecker : Serializable {
 
     fun getFormatter() = FormatterFunc { content ->
-        if ("package keiyoushi.lib.randomua" !in content &&
-            "keiyoushi.lib.randomua" in content &&
+        if ("package dokusho.lib.randomua" !in content &&
+            "dokusho.lib.randomua" in content &&
             "override fun getMangaUrl(" !in content
         ) {
             throw AssertionError(

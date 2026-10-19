@@ -7,7 +7,9 @@
   },
   "bashOutputMaxChars": 15000,
   "plansDirectory": ".claude/plans",
-  "enabledMcpjsonServers": ["context7"],
+  "enabledMcpjsonServers": [
+    "context7"
+  ],
   "permissions": {
     "allow": [
       "Read",
@@ -58,7 +60,8 @@
       "Bash(git push*)",
       "Bash(gh release*)",
       "Bash(gh workflow run*)",
-      "Bash(gh secret*)"
+      "Bash(gh secret *)",
+      "Bash(gh variable set*)"
     ],
     "deny": [
       "Read(**/build/**)",
@@ -70,7 +73,24 @@
       "Read(**/*.keystore)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
-      "Bash(git reset --hard*)"
+      "Bash(git reset --hard*)",
+      "Read(.env)",
+      "Read(**/.env)",
+      "Read(.env.local)",
+      "Edit(.env)",
+      "Edit(**/.env)",
+      "Read(/Users/macbookpro/.dokusho/**)",
+      "Read(~/.dokusho/**)",
+      "Edit(/Users/macbookpro/.dokusho/**)",
+      "Bash(cat .env*)",
+      "Bash(cat *.jks*)",
+      "Bash(cat *keystore*)",
+      "Bash(cat /Users/macbookpro/.dokusho/*)",
+      "Bash(cat ~/.dokusho/*)",
+      "Bash(printenv*)",
+      "Bash(env)",
+      "Bash(base64 /Users/macbookpro/.dokusho/*)",
+      "Bash(base64 ~/.dokusho/*)"
     ]
   },
   "hooks": {

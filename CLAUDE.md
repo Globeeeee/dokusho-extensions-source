@@ -18,7 +18,7 @@ Priority: PRIVACY > TOOLCHAIN > SOURCE > BUGFIX > QUICK.
 | EXPLAIN | how/what/why | none, read the code |
 | BUGFIX | site changed, empty chapter list, blank chapter, Cloudflare loop | `extension.md` §Debugging |
 | SOURCE | new site, add source, scaffold extension, multisrc theme | `extension.md`, `docs/PLAN.md` §Sources, skill `/ext-new` after `/ext-recon` |
-| TOOLCHAIN | build-logic, `extensions-lib`, `KeiSource`, `compiler`, manifest keys, lib version | `extension.md` §Toolchain, `../dokusho/.claude/rules/novel.md` §Source contract |
+| TOOLCHAIN | build-logic, `extensions-lib`, `DokushoSource`, `compiler`, manifest keys, lib version | `extension.md` §Toolchain, `../dokusho/.claude/rules/novel.md` §Source contract |
 | PRIVACY | login, cookies, Webnovel, WuxiaWorld, locked chapters | mode packs + `extension.md` §Accounts |
 | PUBLISH | release, index, signing, workflow, `repo` branch | `publish.md` |
 | DOCS | README, rules, plan | none |
@@ -39,12 +39,12 @@ chapter HTML · stable ids · anything asked for.
 
 | Rule | Do |
 |------|-----|
-| Module shape | `src/<lang>/<name>/build.gradle.kts` + `res/mipmap-*` + one `@Source abstract class X : KeiSource()`. No manifest, it is generated. |
+| Module shape | `src/<lang>/<name>/build.gradle.kts` + `res/mipmap-*` + one `@Source abstract class X : DokushoSource()`. No manifest, it is generated. |
 | Content | `getChapterContent` returns sanitized HTML: paragraphs, headings, emphasis, images with absolute URLs. Strip scripts, ads, watermark spans, "read at" footers. |
 | Network | `configureClient { rateLimit(n) }`. Leave Cloudflare to the app interceptor. Set Referer in `configureHeaders`. |
 | Accounts | Login only through the app WebView; cookies come from the shared jar. A locked chapter returns `ChapterContent` with a locked flag, never a fetched copy from elsewhere. |
 | Logging | No `println`, no `Log.*`. Extensions do not log. |
-| Secrets | `signingkey.jks` and passwords only in CI secrets. |
+| Secrets | Never in source, commits, chat, logs or tool output. Local copies only in `~/.dokusho/signing/`; CI uses GitHub secrets; repos hold `.env.example` with names only. Pass values from files (`--body "$(cat f)"`), never as literals. Never read `.env`, keystores or `~/.dokusho` into context. Policy: `docs/SECRETS.md` in the app repo. |
 | Tests | A source change is verified by `assembleDebug` + install in the app + opening a chapter. Say which site page you tested against. |
 
 ## Map
@@ -54,10 +54,10 @@ chapter HTML · stable ids · anything asked for.
 | Sources | `src/<lang>/<name>/` (empty today) |
 | Themes | `lib-multisrc/<theme>/` (empty today) |
 | Shared libs | `lib/{i18n,randomua,cryptoaes,synchrony,unpacker,lzstring}` |
-| Base class, helpers | `core/src/main/kotlin/keiyoushi/{source/KeiSource.kt,network,utils}` |
-| Codegen | `compiler/` (KSP, `@Source` → `keiyoushi.source.Generated`) |
+| Base class, helpers | `core/src/main/kotlin/dokusho/{source/DokushoSource.kt,network,utils}` |
+| Codegen | `compiler/` (KSP, `@Source` → `dokusho.source.Generated`) |
 | Build plugins | `gradle/build-logic/src/main/kotlin/` (`ExtensionPlugin`, `GenerateManifestTask`, `internal/Constant.kt`) |
-| Versions | `gradle/libs.versions.toml` (extensions-lib, okhttp, jsoup) · `gradle/kei.versions.toml` (SDKs) |
+| Versions | `gradle/libs.versions.toml` (extensions-lib, okhttp, jsoup) · `gradle/dok.versions.toml` (SDKs) |
 | Scaffolder | `ext-bootstrap.py` |
 | Publish | `.github/workflows/build_push.yml` · `.github/scripts/publish-repo.py` · `index.proto` |
 

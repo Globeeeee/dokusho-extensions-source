@@ -2,12 +2,12 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.serialization)
 
-    alias(kei.plugins.android.base)
-    alias(kei.plugins.spotless)
+    alias(dok.plugins.android.base)
+    alias(dok.plugins.spotless)
 }
 
 android {
-    namespace = "keiyoushi.core"
+    namespace = "dokusho.core"
 
     buildFeatures {
         resValues = false

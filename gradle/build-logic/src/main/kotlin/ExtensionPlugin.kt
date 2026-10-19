@@ -5,27 +5,27 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ScopedArtifacts
 import com.android.build.gradle.tasks.PackageAndroidArtifact
 import com.google.devtools.ksp.gradle.KspExtension
-import io.github.keiyoushi.gradle.api.DeeplinkFilter
-import io.github.keiyoushi.gradle.api.dsl.ExtensionDeeplink
-import io.github.keiyoushi.gradle.api.dsl.KeiyoushiExtension
-import io.github.keiyoushi.gradle.api.dsl.KeiyoushiThemeExtension
-import io.github.keiyoushi.gradle.internal.ExtensionMetadata
-import io.github.keiyoushi.gradle.internal.ResolvedSource
-import io.github.keiyoushi.gradle.internal.SourceMetadata
-import io.github.keiyoushi.gradle.internal.VALID_LIB_VERSIONS
-import io.github.keiyoushi.gradle.internal.extensions.alias
-import io.github.keiyoushi.gradle.internal.extensions.compileOnly
-import io.github.keiyoushi.gradle.internal.extensions.implementation
-import io.github.keiyoushi.gradle.internal.extensions.kei
-import io.github.keiyoushi.gradle.internal.extensions.ksp
-import io.github.keiyoushi.gradle.internal.extensions.libs
-import io.github.keiyoushi.gradle.internal.extensions.plugins
-import io.github.keiyoushi.gradle.internal.extensionsLib
-import io.github.keiyoushi.gradle.internal.toMetadata
-import io.github.keiyoushi.gradle.tasks.CreateExtensionJarTask
-import io.github.keiyoushi.gradle.tasks.GenerateManifestTask
-import io.github.keiyoushi.gradle.tasks.GenerateSourceInfoTask
-import io.github.keiyoushi.gradle.tasks.SignExtensionJarTask
+import app.dokusho.gradle.api.DeeplinkFilter
+import app.dokusho.gradle.api.dsl.ExtensionDeeplink
+import app.dokusho.gradle.api.dsl.DokushoExtension
+import app.dokusho.gradle.api.dsl.DokushoThemeExtension
+import app.dokusho.gradle.internal.ExtensionMetadata
+import app.dokusho.gradle.internal.ResolvedSource
+import app.dokusho.gradle.internal.SourceMetadata
+import app.dokusho.gradle.internal.VALID_LIB_VERSIONS
+import app.dokusho.gradle.internal.extensions.alias
+import app.dokusho.gradle.internal.extensions.compileOnly
+import app.dokusho.gradle.internal.extensions.implementation
+import app.dokusho.gradle.internal.extensions.dok
+import app.dokusho.gradle.internal.extensions.ksp
+import app.dokusho.gradle.internal.extensions.libs
+import app.dokusho.gradle.internal.extensions.plugins
+import app.dokusho.gradle.internal.extensionsLib
+import app.dokusho.gradle.internal.toMetadata
+import app.dokusho.gradle.tasks.CreateExtensionJarTask
+import app.dokusho.gradle.tasks.GenerateManifestTask
+import app.dokusho.gradle.tasks.GenerateSourceInfoTask
+import app.dokusho.gradle.tasks.SignExtensionJarTask
 import kotlinx.serialization.json.Json
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -45,13 +45,13 @@ class ExtensionPlugin : Plugin<Project> {
             alias(libs.plugins.kotlin.serialization)
             alias(libs.plugins.ksp)
 
-            alias(kei.plugins.android.base)
-            alias(kei.plugins.spotless)
+            alias(dok.plugins.android.base)
+            alias(dok.plugins.spotless)
         }
 
-        val keiyoushi = extensions.create<KeiyoushiExtension>("keiyoushi")
+        val dokusho = extensions.create<DokushoExtension>("dokusho")
         val dirSuffix = "${project.parent?.name}.${project.name}"
-        val pkgName = keiyoushi.pkgName.orElse(dirSuffix)
+        val pkgName = dokusho.pkgName.orElse(dirSuffix)
 
         android {
             namespace = "eu.kanade.tachiyomi.extension"
@@ -74,9 +74,15 @@ class ExtensionPlugin : Plugin<Project> {
                 checkReleaseBuilds = false
             }
 
+            // SIGNING_KEYSTORE may point outside the repo (for example ~/.dokusho/signing/*.jks);
+            // the default name is what CI decodes the secret into. Never commit either.
+            val releaseKeystore = providers.environmentVariable("SIGNING_KEYSTORE").orNull
+                ?.let { java.io.File(it) }
+                ?: rootProject.file("signingkey.jks")
+
             signingConfigs {
                 create("release") {
-                    storeFile = rootProject.file("signingkey.jks")
+                    storeFile = releaseKeystore
                     storePassword = providers.environmentVariable("KEY_STORE_PASSWORD").orNull
                     keyAlias = providers.environmentVariable("ALIAS").orNull
                     keyPassword = providers.environmentVariable("KEY_PASSWORD").orNull
@@ -85,7 +91,7 @@ class ExtensionPlugin : Plugin<Project> {
 
             buildTypes {
                 named("release") {
-                    signingConfig = if (rootProject.file("signingkey.jks").exists()) {
+                    signingConfig = if (releaseKeystore.exists()) {
                         signingConfigs.getByName("release")
                     } else {
                         signingConfigs.getByName("debug")
@@ -110,28 +116,28 @@ class ExtensionPlugin : Plugin<Project> {
             }
         }
 
-        val themeExtension = keiyoushi.theme.map { themeName ->
-            evaluationDependsOn(":lib-multisrc:$themeName").extensions.findByType<KeiyoushiThemeExtension>()
-                ?: throw AssertionError("Theme project :lib-multisrc:$themeName must apply kei.plugins.multisrc")
+        val themeExtension = dokusho.theme.map { themeName ->
+            evaluationDependsOn(":lib-multisrc:$themeName").extensions.findByType<DokushoThemeExtension>()
+                ?: throw AssertionError("Theme project :lib-multisrc:$themeName must apply dok.plugins.multisrc")
         }
 
-        val versionCodeProvider = themeExtension.flatMap { themeKeiyoushi ->
-            val themeLib = themeKeiyoushi.libVersion.get()
-            val extLib = keiyoushi.libVersion.get()
+        val versionCodeProvider = themeExtension.flatMap { themeDokusho ->
+            val themeLib = themeDokusho.libVersion.get()
+            val extLib = dokusho.libVersion.get()
             check(themeLib == extLib) {
                 "Multisrc libVersion ($themeLib) and extension libVersion ($extLib) must match."
             }
-            themeKeiyoushi.baseVersionCode.zip(keiyoushi.versionCode) { base, ext -> base + ext }
-        }.orElse(keiyoushi.versionCode)
+            themeDokusho.baseVersionCode.zip(dokusho.versionCode) { base, ext -> base + ext }
+        }.orElse(dokusho.versionCode)
 
-        val versionNameProvider = keiyoushi.libVersion.flatMap { libVersion ->
+        val versionNameProvider = dokusho.libVersion.flatMap { libVersion ->
             check(libVersion in VALID_LIB_VERSIONS) {
                 "libVersion $libVersion is not supported. Supported versions: $VALID_LIB_VERSIONS"
             }
             versionCodeProvider.map { "$libVersion.$it" }
         }
 
-        val androidVersionCodeProvider = keiyoushi.libVersion.flatMap { libVersion ->
+        val androidVersionCodeProvider = dokusho.libVersion.flatMap { libVersion ->
             versionCodeProvider.map { versionCode ->
                 libVersion.split(".").joinToString("") { it.padStart(2, '0') }.toInt().times(1000) + versionCode
             }
@@ -141,11 +147,11 @@ class ExtensionPlugin : Plugin<Project> {
             .flatMap { it.deeplinks }
             .orElse(emptyList())
 
-        val defaultHostsProvider = keiyoushi.sources.map { sources ->
+        val defaultHostsProvider = dokusho.sources.map { sources ->
             sources.flatMap { it.resolvedBaseUrl.get().allUrls() }.mapNotNull(::extractHost)
         }
 
-        val deeplinksProvider = keiyoushi.deeplinks
+        val deeplinksProvider = dokusho.deeplinks
             .zip(themeDeeplinks) { local, theme -> local + theme }
             .zip(defaultHostsProvider) { specs, defaultHosts ->
                 specsToFilters(specs, defaultHosts)
@@ -153,13 +159,13 @@ class ExtensionPlugin : Plugin<Project> {
 
         val manifestTask = tasks.register<GenerateManifestTask>("generateExtensionManifest") {
             this.filters.set(deeplinksProvider)
-            this.extensionName.set(keiyoushi.name)
-            this.contentWarning.set(keiyoushi.contentWarning)
-            this.extensionLib.set(keiyoushi.libVersion)
+            this.extensionName.set(dokusho.name)
+            this.contentWarning.set(dokusho.contentWarning)
+            this.extensionLib.set(dokusho.libVersion)
         }
 
         val sourceInfoTask = tasks.register<GenerateSourceInfoTask>("generateSourceInfo") {
-            this.outputFile.set(layout.buildDirectory.file("keiyoushi-source-info.json"))
+            this.outputFile.set(layout.buildDirectory.file("dokusho-source-info.json"))
         }
 
         val proguardConfiguration = configurations.create("proguard") {
@@ -231,7 +237,7 @@ class ExtensionPlugin : Plugin<Project> {
                         storePassword.set(signingConfig.storePassword.orEmpty())
                         keyAlias.set(signingConfig.keyAlias.orEmpty())
                         keyPassword.set(signingConfig.keyPassword.orEmpty())
-                        minSdkVersion.set(kei.versions.android.sdk.min.map { it.toInt() })
+                        minSdkVersion.set(dok.versions.android.sdk.min.map { it.toInt() })
                         outputJar.set(layout.buildDirectory.file(filenameProvider.map { "outputs/jar/${variant.name}/$it.jar" }))
                     }
 
@@ -242,18 +248,18 @@ class ExtensionPlugin : Plugin<Project> {
         }
 
         dependencies {
-            addProvider("implementation", keiyoushi.theme.map { project(":lib-multisrc:$it") })
+            addProvider("implementation", dokusho.theme.map { project(":lib-multisrc:$it") })
             implementation(project(":core"))
             compileOnly(libs.bundles.common)
-            compileOnly(keiyoushi.libVersion.flatMap { libs.extensionsLib(it) })
+            compileOnly(dokusho.libVersion.flatMap { libs.extensionsLib(it) })
             ksp(project(":compiler"))
         }
 
         afterEvaluate {
-            val specs = keiyoushi.sources.get()
+            val specs = dokusho.sources.get()
             check(specs.isNotEmpty()) { "At least one source { } block is required" }
 
-            val extName = keiyoushi.name.get()
+            val extName = dokusho.name.get()
             val resolvedSources = specs.map { spec ->
                 val name = spec.name.orElse(extName).get()
                 val lang = spec.lang.get()
@@ -285,9 +291,9 @@ class ExtensionPlugin : Plugin<Project> {
                     mirrorUrls = source.baseUrl.mirrors.map { it.url },
                 )
             }
-            // Proto keiyoushi.gradle.api.ContentWarning: UNSPECIFIED=0, SAFE=1, MIXED=2, NSFW=3 (enum ordinal + 1).
-            val contentWarningOrdinal = keiyoushi.contentWarning.get().ordinal + 1
-            val libVersionValue = keiyoushi.libVersion.get()
+            // Proto dokusho.gradle.api.ContentWarning: UNSPECIFIED=0, SAFE=1, MIXED=2, NSFW=3 (enum ordinal + 1).
+            val contentWarningOrdinal = dokusho.contentWarning.get().ordinal + 1
+            val libVersionValue = dokusho.libVersion.get()
 
             val sourceInfoJsonProvider = androidVersionCodeProvider.zip(versionNameProvider) { code, name ->
                 Json.encodeToString(
@@ -295,7 +301,7 @@ class ExtensionPlugin : Plugin<Project> {
                         // Always the module directory (e.g. "en.example"), even when pkgName
                         // is overridden - the publish pipeline derives the icon path from it.
                         module = dirSuffix,
-                        theme = keiyoushi.theme.orNull,
+                        theme = dokusho.theme.orNull,
                         packageName = packageName,
                         name = extName,
                         versionCode = code,

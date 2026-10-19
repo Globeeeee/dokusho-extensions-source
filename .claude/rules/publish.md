@@ -7,14 +7,18 @@ Read for PUBLISH work.
 1. Prepare: `find-base-sha.py` finds the last green commit, `generate-build-matrices.py`
    lists changed modules in chunks of 80.
 2. Build chunks: decode `SIGNING_KEY` into `signingkey.jks`, `./gradlew <module>:assembleRelease`
-   per module. Outputs: signed APK, shrunk signed JAR, `build/keiyoushi-source-info.json`.
+   per module. Outputs: signed APK, shrunk signed JAR, `build/dokusho-source-info.json`.
 3. Publish: checkout `Globeeeee/dokusho-extensions` branch `repo` with `BOT_PAT`, run
    `publish-repo.py`, which uploads APKs and JARs to GitHub Releases of the index repo and
    rewrites `index.json`, `index.pb` (gzipped protobuf, schema `index.proto`), `index.html`.
 
 Secrets to set on this repo: `SIGNING_KEY` (base64 of the keystore), `ALIAS`,
 `KEY_STORE_PASSWORD`, `KEY_PASSWORD`, `BOT_PAT` (classic token, `repo` scope, write to the
-index repo). Create the keystore locally once with `keytool -genkeypair -keyalg RSA -keysize 4096
+index repo). Repository variable (not secret): `SIGNING_KEY_FINGERPRINT`, the SHA-256 of the
+signing cert in lowercase hex; `publish-repo.py` refuses to run without it.
+
+Until a source module exists the matrix is empty, so the build and publish jobs are skipped
+and only "Populate Gradle cache" runs (`:core` and the libs). Create the keystore locally once with `keytool -genkeypair -keyalg RSA -keysize 4096
 -validity 10000`, base64 it into the secret, then delete the local file.
 
 Guards in the workflows read `github.repository == 'Globeeeee/dokusho-extensions-source'`.

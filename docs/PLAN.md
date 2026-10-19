@@ -10,7 +10,7 @@ removed; publish scripts point at the Dokusho repos. Nothing builds a novel yet.
 
 - [ ] `:extensions-lib` stub module replaces the JitPack `com.github.keiyoushi:extensions-lib` dependency. It mirrors `dokusho/source-api` exactly: `NovelSource`, `ChapterContent`, `HttpNovelSource`, plus everything Mihon already had.
 - [ ] `gradle/build-logic` `Constant.kt`: `VALID_LIB_VERSIONS = listOf("2.0")`; `GenerateManifestTask` emits feature `dokusho.extension` and `dokusho.*` meta-data keys.
-- [ ] `core/KeiSource.kt`: `abstract suspend fun getChapterContent(chapter: SChapter): ChapterContent`; `getPageList` defaults to empty.
+- [ ] `core/DokushoSource.kt`: `abstract suspend fun getChapterContent(chapter: SChapter): ChapterContent`; `getPageList` defaults to empty.
 - [ ] `ext-bootstrap.py` generates a novel template (popular, latest, search, `fetchMangaUpdate`, `getChapterContent`).
 - [ ] Hello-world extension `src/en/royalroad` builds, installs in the app, lists chapters, opens one.
 - Done when: `./gradlew :src:en:royalroad:assembleDebug` produces an APK the app loads.

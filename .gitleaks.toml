@@ -1,0 +1,21 @@
+# gitleaks config: extend the default rules, allow known public values.
+title = "Dokusho extensions"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public values and vendored reference material"
+paths = [
+  '''docs/upstream/.*''',
+  '''.*\.lock$''',
+  '''\.env\.example$''',
+  # Keiyoushi's unit-test vectors (hex keys for XOR and AES tests), not credentials
+  '''core/src/test/.*''',
+]
+regexes = [
+  # APK signing certificate fingerprint: public by design, published in repo.json
+  '''a055e939a2e12dd2440697ad92fa36ee746a60e9a8a0ec9fd8465ea6b5ffb8ce''',
+  # Keiyoushi's public fingerprint, present in the scaffold commits before it was replaced
+  '''9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2''',
+]

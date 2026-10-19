@@ -6,8 +6,8 @@ Read for SOURCE, TOOLCHAIN and BUGFIX work. Only the sections your mode needs.
 
 ```kotlin
 // src/en/royalroad/build.gradle.kts
-plugins { alias(kei.plugins.extension) }
-keiyoushi {
+plugins { alias(dok.plugins.extension) }
+dokusho {
     name = "Royal Road"
     versionCode = 1
     contentWarning = ContentWarning.SAFE   // SAFE / MIXED / NSFW
@@ -19,14 +19,14 @@ keiyoushi {
 ```
 
 - Kotlin lives in `src/eu/kanade/tachiyomi/extension/<lang>/<name>/` (note: `src`, not `src/main/java`).
-- Exactly one `@Source abstract class X : KeiSource()`. Do not override `lang`; the KSP
+- Exactly one `@Source abstract class X : DokushoSource()`. Do not override `lang`; the KSP
   processor injects `name`, `lang`, `id`, `baseUrl`.
 - Icons in `res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png`. No manifest.
 - Source id = first 8 bytes of `MD5("<name lowercase>/<lang>/<versionId>")`. Rename means
   passing the old `id` explicitly in `source { }`.
 - Multi-language or multi-domain: several `source { }` blocks, not a `SourceFactory`.
 
-## KeiSource contract (after phase 1)
+## DokushoSource contract (after phase 1)
 
 | Member | Purpose |
 |--------|---------|
@@ -70,7 +70,7 @@ Keep: `p`, `h1`-`h4`, `em`, `strong`, `br`, `hr`, `blockquote`, `img`.
 
 ## Themes (`lib-multisrc`)
 
-A theme is `abstract class Theme : KeiSource()` with open selectors and `open val`s. Children
+A theme is `abstract class Theme : DokushoSource()` with open selectors and `open val`s. Children
 set `theme = "<name>"` in the DSL and extend the class in a few lines. Bump the theme's
 `baseVersionCode` when theme code changes; every child's version code is `base + own`.
 
@@ -79,8 +79,8 @@ set `theme = "<name>"` in the DSL and extend the class in a few lines. Bump the 
 - `gradle/build-logic/.../internal/Constant.kt`: `VALID_LIB_VERSIONS`.
 - `GenerateManifestTask.kt`: `uses-feature` and meta-data names. Phase 1 changes them to `dokusho.*`.
 - `ExtensionPlugin.kt`: `compileOnly(libs.tachiyomi.lib.v16)` → phase 1 swaps to `project(":extensions-lib")`.
-- `core/.../KeiSource.kt`: base class; `getChapterContent` added in phase 1.
-- `compiler/.../SourceProcessor.kt`: generates `keiyoushi.source.Generated`.
+- `core/.../DokushoSource.kt`: base class; `getChapterContent` added in phase 1.
+- `compiler/.../SourceProcessor.kt`: generates `dokusho.source.Generated`.
 - Version code math: Android `versionCode = libDigits * 1000 + versionCode`, `versionName = "$libVersion.$versionCode"`.
 
 ## Debugging (BUGFIX)

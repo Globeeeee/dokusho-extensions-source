@@ -93,6 +93,7 @@ jobs:
 
       - name: Build and lint shared modules
         run: |
+          shopt -s nullglob
           MODULES=(":core")
           for dir in lib lib-multisrc; do
             for build_file in "$dir"/*/build.gradle.kts; do
@@ -101,8 +102,10 @@ jobs:
           done
 
           # One extension, so that what only extension builds need is cached too
-          extension=$(find src -mindepth 2 -maxdepth 2 -type d | sort | head -n 1)
-          MODULES+=(":${extension//\//:}")
+          extension=$(find src -mindepth 2 -maxdepth 2 -type d -not -name '.*' 2>/dev/null | sort | head -n 1)
+          if [ -n "$extension" ]; then
+            MODULES+=(":${extension//\//:}")
+          fi
 
           TASKS=()
           for module in "${MODULES[@]}"; do
@@ -160,7 +163,7 @@ jobs:
           path: |
             **/build/outputs/apk/release/*.apk
             **/build/outputs/jar/release/*.jar
-            **/build/keiyoushi-source-info.json
+            **/build/dokusho-source-info.json
           retention-days: 1
 
       - name: Clean up CI files
@@ -208,6 +211,7 @@ jobs:
           DELETE: ${{ needs.prepare.outputs.delete }}
           FULL_REBUILD: ${{ needs.prepare.outputs.full_rebuild }}
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          SIGNING_KEY_FINGERPRINT: ${{ vars.SIGNING_KEY_FINGERPRINT }}
         run: |
           cd repo
           pip install protobuf

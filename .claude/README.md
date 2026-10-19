@@ -6,7 +6,7 @@ Claude Code config for the Dokusho extensions repo. Same shape as the app repo.
 |------|--------|
 | `/CLAUDE.md` | every turn: router, always-on rules, map |
 | `docs/PLAN.md` | SOURCE and PUBLISH work |
-| `.claude/rules/extension.md` | module anatomy, KeiSource contract, sanitising, accounts, themes, toolchain, debugging |
+| `.claude/rules/extension.md` | module anatomy, DokushoSource contract, sanitising, accounts, themes, toolchain, debugging |
 | `.claude/rules/publish.md` | CI pipeline, secrets, index repo, release checklist |
 | `.claude/skills/ext-recon` | scout a site, write `docs/recon/<domain>.md` |
 | `.claude/skills/ext-new` | scaffold and implement a source from a recon note |

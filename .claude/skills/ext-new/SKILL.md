@@ -1,6 +1,6 @@
 ---
 name: ext-new
-description: Scaffold and implement a new Dokusho novel extension from a recon note - module, DSL, KeiSource class with listing, details, chapters and getChapterContent, icons, build and install. Use when Qasim says add source, new extension, support <site>, scaffold extension.
+description: Scaffold and implement a new Dokusho novel extension from a recon note - module, DSL, DokushoSource class with listing, details, chapters and getChapterContent, icons, build and install. Use when Qasim says add source, new extension, support <site>, scaffold extension.
 ---
 
 # New extension
@@ -16,7 +16,7 @@ from `/ext-recon`; if missing, run recon first.
    the template gets wrong rather than hand-writing the module.
 3. `build.gradle.kts`: `name`, `versionCode = 1`, `contentWarning`, `libVersion = "2.0"`,
    `source { lang; baseUrl }`, `deeplink` paths if the site has stable URLs.
-4. Class: `@Source abstract class <Name> : KeiSource()` implementing, in this order:
+4. Class: `@Source abstract class <Name> : DokushoSource()` implementing, in this order:
    `configureClient` (rateLimit) → `configureHeaders` → popular → latest → search →
    `fetchMangaUpdate` (details + full chapter list, follow pagination, `chapter_number`,
    `date_upload` via `tryParseDate`) → `getChapterContent` (sanitize per the pack) →

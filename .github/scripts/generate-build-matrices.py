@@ -15,6 +15,13 @@ CORE_FILES_REGEX = re.compile(
     r"^(common/|compiler/|core/|gradle/|build\.gradle\.kts|gradle\.properties|settings\.gradle\.kts|.github/scripts)"
 )
 
+def module_dirs(parent: Path) -> list[Path]:
+    """Direct subdirectories that can hold a Gradle module. Placeholder files and hidden entries are skipped."""
+    if not parent.is_dir():
+        return []
+    return sorted(p for p in parent.iterdir() if p.is_dir() and not p.name.startswith("."))
+
+
 def run_command(command: str) -> str:
     result = subprocess.run(command, capture_output=True, text=True, shell=True)
     if result.returncode != 0:
@@ -71,7 +78,7 @@ def resolve_dependent_libs(libs: set[str]) -> set[str]:
             rf"project\([\"']:(?:lib):({'|'.join(map(re.escape, current_libs))})[\"']\)"
         )
 
-        for lib in Path("lib").iterdir():
+        for lib in module_dirs(Path("lib")):
             if lib.name in all_dependent_libs or lib.name in libs:
                 continue
 
@@ -102,7 +109,7 @@ def resolve_multisrc_lib(libs: set[str]) -> set[str]:
 
     multisrcs = set()
 
-    for multisrc in Path("lib-multisrc").iterdir():
+    for multisrc in module_dirs(Path("lib-multisrc")):
         build_file = multisrc / "build.gradle.kts"
         if not build_file.is_file():
             continue
@@ -135,8 +142,8 @@ def resolve_ext(multisrcs: set[str], libs: set[str]) -> set[tuple[str, str]]:
 
     extensions = set()
 
-    for lang in Path("src").iterdir():
-        for extension in lang.iterdir():
+    for lang in module_dirs(Path("src")):
+        for extension in module_dirs(lang):
             build_file = extension / "build.gradle.kts"
             if not build_file.is_file():
                 continue
@@ -218,8 +225,10 @@ def get_module_list(ref: str) -> tuple[list[str], list[str], list[str], bool]:
 def get_all_modules(ref: str) -> tuple[list[str], list[str]]:
     modules = []
     deleted = []
-    for lang in Path("src").iterdir():
-        for extension in lang.iterdir():
+    for lang in module_dirs(Path("src")):
+        for extension in module_dirs(lang):
+            if not (extension / "build.gradle.kts").is_file():
+                continue
             modules.append(f":src:{lang.name}:{extension.name}")
             deleted.append(resolve_module_suffix(ref, lang.name, extension.name))
     return modules, deleted
@@ -230,7 +239,7 @@ def get_all_lint_modules() -> list[str]:
     modules.extend(
         f":{directory}:{module.name}"
         for directory in ("lib", "lib-multisrc")
-        for module in Path(directory).iterdir()
+        for module in module_dirs(Path(directory))
         if (module / "build.gradle.kts").is_file()
     )
     return sorted(modules)

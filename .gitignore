@@ -1,22 +1,33 @@
-.gradle
-/local.properties
-/.idea/workspace.xml
-.DS_Store
-build/
-/captures
-.idea/
-*.iml
-repo/
-apk/
-gen
-generated-src/
-.kotlin
-*.jks
 
-# Local only
+!.claude/plans/README.md
+.claude/plans/*
+.claude/settings.local.json
+.DS_Store
+.env
+.env.*
+.gradle
+.history/
+.idea/
+.kotlin
+*.iml
+*.jks
+*.key
+*.keystore
+*.p12
+*.pem
+/.idea/workspace.xml
+/captures
 /local.properties
 /signingkey.jks
-.claude/settings.local.json
-.claude/plans/*
-!.claude/plans/README.md
-.history/
+# Local only
+# Secrets: never commit. See docs/SECRETS.md
+apk/
+build/
+gen
+generated-src/
+google-services.json
+keystore.properties
+repo/
+service-account*.json
+signingkey.jks
+!.env.example

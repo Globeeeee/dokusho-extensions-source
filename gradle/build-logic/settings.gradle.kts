@@ -9,8 +9,8 @@ dependencyResolutionManagement {
         create("libs") {
             from(files("../libs.versions.toml"))
         }
-        create("kei") {
-            from(files("../kei.versions.toml"))
+        create("dok") {
+            from(files("../dok.versions.toml"))
         }
     }
 }

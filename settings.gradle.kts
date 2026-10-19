@@ -12,8 +12,8 @@ pluginManagement {
 
 dependencyResolutionManagement {
     versionCatalogs {
-        create("kei") {
-            from(files("gradle/kei.versions.toml"))
+        create("dok") {
+            from(files("gradle/dok.versions.toml"))
         }
     }
     @Suppress("UnstableApiUsage")
@@ -28,7 +28,7 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Keiyoushi"
+rootProject.name = "DokushoExtensions"
 
 /**
  * Add or remove modules to load as needed for local development here.

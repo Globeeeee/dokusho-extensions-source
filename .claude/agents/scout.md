@@ -11,7 +11,7 @@ Rules:
 - Search first with `grep -rn --include=*.kt` or Glob. Read only the lines you need, with `sed -n`.
 - Skip `build/`, `.gradle/`, `.kotlin/`.
 - Known layout: sources `src/<lang>/<name>/src/eu/kanade/tachiyomi/extension/<lang>/<name>/`,
-  themes `lib-multisrc/`, helpers `lib/`, base class and utils `core/src/main/kotlin/keiyoushi/`,
+  themes `lib-multisrc/`, helpers `lib/`, base class and utils `core/src/main/kotlin/dokusho/`,
   KSP `compiler/`, build plugins `gradle/build-logic/src/main/kotlin/`, publish scripts
   `.github/scripts/`, Keiyoushi reference `docs/upstream/KEIYOUSHI_CONTRIBUTING.md` (2,000 lines, grep it).
 - Never fetch websites; that is `/ext-recon`'s job.

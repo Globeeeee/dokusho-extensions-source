@@ -72,11 +72,11 @@ def get_ext_classname(extname: str) -> str:
 
 def write_gradle_file(args: argparse.Namespace, ext_dir: Path) -> None:
     with open(ext_dir / "build.gradle.kts", "w") as f:
-        f.write("import io.github.keiyoushi.gradle.api.ContentWarning\n\n")
+        f.write("import app.dokusho.gradle.api.ContentWarning\n\n")
         f.write("plugins {\n")
-        f.write("\talias(kei.plugins.extension)\n")
+        f.write("\talias(dok.plugins.extension)\n")
         f.write("}\n\n")
-        f.write("keiyoushi {\n")
+        f.write("dokusho {\n")
         f.write(f'\tname = "{args.extname}"\n')
 
         if args.multisrc:
@@ -109,7 +109,7 @@ def write_multisrc_source(f, args: argparse.Namespace, classname: str) -> None:
     f.write(
         f"import eu.kanade.tachiyomi.multisrc.{args.multisrc}.{multisrc_classname}\n"
     )
-    f.write("import keiyoushi.annotation.Source\n\n")
+    f.write("import dokusho.annotation.Source\n\n")
     f.write("@Source\n")
     f.write(f"abstract class {classname} : {multisrc_classname}()\n")
 
@@ -121,13 +121,13 @@ def write_keisource_source(f, classname: str) -> None:
     f.write("import eu.kanade.tachiyomi.source.model.SChapter\n")
     f.write("import eu.kanade.tachiyomi.source.model.SManga\n")
     f.write("import eu.kanade.tachiyomi.source.model.SMangaUpdate\n")
-    f.write("import keiyoushi.annotation.Source\n")
-    f.write("import keiyoushi.source.KeiSource\n")
+    f.write("import dokusho.annotation.Source\n")
+    f.write("import dokusho.source.DokushoSource\n")
     f.write("import okhttp3.HttpUrl\n")
     f.write("import java.lang.UnsupportedOperationException\n\n")
 
     f.write("@Source\n")
-    f.write(f"abstract class {classname} : KeiSource() {{\n\n")
+    f.write(f"abstract class {classname} : DokushoSource() {{\n\n")
 
     f.write(
         "\toverride suspend fun getPopularManga(page: Int): MangasPage = throw UnsupportedOperationException()\n\n"
