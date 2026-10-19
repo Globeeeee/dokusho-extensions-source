@@ -38,12 +38,50 @@ docs/upstream/         Keiyoushi's original contributing guide, kept as referenc
 
 ## Build one extension
 
-Requires JDK 21 and the Android SDK.
+A fresh clone builds debug extension APKs with no secrets.
+
+### Requirements
+
+JDK **21** and the Android SDK, same as the app:
 
 ```bash
-./gradlew :src:en:<name>:assembleDebug
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+```
+
+### Clone and build
+
+```bash
+git clone git@github.com:Globeeeee/dokusho-extensions-source.git
+cd dokusho-extensions-source
+./gradlew :core:assembleRelease                 # sanity check, builds the shared base
+./gradlew :src:en:<name>:assembleDebug          # one extension
 adb install -r src/en/<name>/build/outputs/apk/debug/*.apk
 ```
+
+Install the matching Dokusho debug app first; extensions only load inside it.
+
+### Signed release build (maintainer only)
+
+```bash
+cp .env.example .env                            # fill from your keystore, never commit .env
+scripts/with-env.sh ./gradlew :src:en:<name>:assembleRelease
+```
+
+Without `.env` a release build is signed with the debug key; it installs for testing but does
+not match the published index. CI signs from repository secrets (`docs/SECRETS.md` in the app repo).
+
+### Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `Dependency requires at least JVM runtime version 21` | set `JAVA_HOME` to a JDK 21 |
+| `Could not resolve com.github.keiyoushi:extensions-lib` | network or JitPack outage; retry. Replaced by a local module in phase 1 |
+| `project 'src' not found` | there is no extension yet; build `:core` instead |
+| spotless failures | `./gradlew spotlessApply` |
+
+Claude Code: copy `.claude/settings.local.json.example` to `.claude/settings.local.json`
+(gitignored) and set your JDK 21 path.
 
 ## Writing an extension
 
