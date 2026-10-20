@@ -18,9 +18,13 @@ class SpotlessPlugin : Plugin<Project> {
 
         // Configuration should be synced with [/gradle/build-logic/build.gradle.kts]
         val ktlintVersion = libs.ktlint.bom.get().version
+        // Every module applies this plugin itself, so the root checks only its own files and never
+        // reads module sources or their build output (KSP, spotless-clean) under src/<lang>/<name>/.
+        val isRoot = this == rootProject
         spotless {
             kotlin {
-                target("src/**/*.kt", "*.kts")
+                if (isRoot) target("*.kts") else target("src/**/*.kt", "*.kts")
+                targetExclude("**/build/**")
                 ktlint(ktlintVersion)
                     .editorConfigOverride(
                         mapOf(
@@ -32,12 +36,15 @@ class SpotlessPlugin : Plugin<Project> {
                 addStep(RandomUAChecker.toFormatterStep())
             }
 
-            java {
-                target("src/**/*.java")
-                googleJavaFormat()
-                removeUnusedImports()
-                trimTrailingWhitespace()
-                endWithNewline()
+            if (!isRoot) {
+                java {
+                    target("src/**/*.java")
+                    targetExclude("**/build/**")
+                    googleJavaFormat()
+                    removeUnusedImports()
+                    trimTrailingWhitespace()
+                    endWithNewline()
+                }
             }
 
             format("gradle") {
@@ -46,10 +53,13 @@ class SpotlessPlugin : Plugin<Project> {
                 endWithNewline()
             }
 
-            format("xml") {
-                target("src/**/*.xml")
-                trimTrailingWhitespace()
-                endWithNewline()
+            if (!isRoot) {
+                format("xml") {
+                    target("src/**/*.xml")
+                    targetExclude("**/build/**")
+                    trimTrailingWhitespace()
+                    endWithNewline()
+                }
             }
         }
     }
