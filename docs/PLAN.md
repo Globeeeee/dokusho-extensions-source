@@ -27,6 +27,10 @@ Hub; use headless Chrome `--dump-dom` instead.
 | 1 | scribblehub.com | ✅ built 2.0.1 | Cards `.search_main_box`; search through Series Finder (`/series-finder/?sf=1&sh=`), the `?s=` search is a 404; full chapter list from `admin-ajax.php` `wi_getreleases_pagination` with `pagenum=-1`, falling back to `?toc=N` pages; body `#chp_raw`, author notes dropped; tables flatten to text for now |
 | 2 | wattpad.com | ✅ built 2.0.1 | JSON API on api.wattpad.com (www is blocked on some networks); hot/new/search via `/api/v3/stories`; parts and text via `/apiv2/?m=storytext&page=N`; paid Wattpad Originals parts come back as a purchase stub and are shown locked |
 | 2 | wuxiaworld.com | ✅ built 2.0.1 | gRPC-web API on api2.wuxiaworld.com with a small hand-written protobuf reader and writer; `SearchNovels`, `GetNovel`, `GetChapterList`, `GetChapter`; karma, VIP and advance chapters marked 🔒 and read as locked (`isTeaser`) |
+| 2 | gutenberg.org | ✅ built 2.0.1 | Catalogue from Gutendex (popular, newest, search); each book's HTML edition split into chapters at its h2 headings, Gutenberg header and footer removed |
+| 2 | ncode.syosetu.com (ja) | ✅ built 2.0.1 | Official novel API for listings and details; TOC pages of 100 (`?p=N`, `.p-eplist__sublist`); body `.js-novel-text.p-novel__text` without preface and afterword; one-shots read from the novel page |
+| 3 | forums.spacebattles.com, forums.sufficientvelocity.com | ⏸ Cloudflare | Threadmark pages sit behind an interactive Cloudflare check; build with the Cloudflare fix |
+| 3 | fanfiction.net, fictionpress.com | ⏸ Cloudflare | Same; build with the Cloudflare fix |
 | 2 | archiveofourown.org | ⏸ waiting | AO3's server was down during recon (Cloudflare 525); build once its pages can be checked. robots.txt disallows search and `view_adult` URLs, so keep requests slow |
 | 3 | webnovel.com | ⬜ planned | Official home of LOTM and Shadow Slave. WebView login, cookies reused, locked chapters shown locked, never fetched |
 
