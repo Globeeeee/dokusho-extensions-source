@@ -3,8 +3,9 @@
 The extension slice of the master plan in `dokusho/docs/PLAN.md`. This repo builds the
 extension APKs; `Globeeeee/dokusho-extensions` (branch `repo`) is where they get published.
 
-Status (2026-10-19): lib 2.0 text API in place; Royal Road is the first extension. Cloudflare
-blocks curl recon on Royal Road and Scribble Hub; use headless Chrome `--dump-dom` instead.
+Status (2026-10-20): phase 1 toolchain done. Royal Road 2.0.1 is built, signed and published to
+the store index. Scribble Hub is next. Cloudflare blocks curl recon on Royal Road and Scribble
+Hub; use headless Chrome `--dump-dom` instead.
 
 ## Phase 1. Toolchain for text (with app phase 1)
 
@@ -13,22 +14,23 @@ blocks curl recon on Royal Road and Scribble Hub; use headless Chrome `--dump-do
 - [x] `core/DokushoSource.kt`: `abstract suspend fun getChapterContent(chapter: SChapter): ChapterContent`; `getPageList` defaults to empty.
 - [x] `ext-bootstrap.py` generates a novel template (popular, latest, search, `fetchMangaUpdate`, `getChapterContent`); verified by generating and building a throwaway module.
 - [x] `src/en/royalroad` builds (APK `dokusho-en.royalroad-v2.0.1.apk`); selectors checked against live pages (listing cards, `window.chapters` JSON with `isUnlocked`, chapter body, hidden anti-copy class). Install and in-app reading verified once the reader lands.
-- Done when: `./gradlew :src:en:royalroad:assembleDebug` produces an APK the app loads.
+- [x] Release builds work in CI: the provided-classpath configuration pins the stub's release variant
+- [x] APKs named `dokusho-<lang>.<name>-v<version>.apk`
+- [x] Docs (README, `CLAUDE.md`, `.claude/rules/extension.md`) describe the local stub, the `ContentWarning` import and the scaffolder
+- [ ] Done when: the APK loads in the app. Built and listed in the store; loading to be confirmed on app v0.1.1.
 
 ## Phase 4. Sources
 
-| Batch | Site | Notes |
-|-------|------|-------|
-| 1 | royalroad.com | Public, clean HTML, chapter list in one page, author notes in separate divs |
-| 1 | scribblehub.com | Public, chapter list paginated via AJAX |
-| 2 | shadowslave.space | Fan reader for Shadow Slave, about 3,200 chapters listed |
-| 2 | freewebnovel.com, novellive.com, readnovelfull.com, novelhi.com, noveltrust.com | Aggregators; verify live, check for Cloudflare, likely share a theme → `lib-multisrc/madara-novel` or a `novelfull` theme |
-| 2 | wuxiaworld.eu | Aggregator, not wuxiaworld.com |
-| 3 | webnovel.com | Official home of LOTM and Shadow Slave. WebView login, cookies reused, locked chapters shown locked, never fetched |
-| 3 | wuxiaworld.com | Official, API-based, subscription chapters locked unless the account has them |
+| Batch | Site | Status | Notes |
+|-------|------|--------|-------|
+| 1 | royalroad.com | ✅ published 2.0.1 | Listing `.fiction-list-item`; chapters from `window.chapters` JSON with `isUnlocked`; body `.chapter-inner.chapter-content`; hidden anti-copy paragraph removed via its `display:none` class |
+| 1 | scribblehub.com | ⬜ next, recon done | Listing page has 25 cards; chapter list paginated via AJAX |
+| 3 | webnovel.com | ⬜ planned | Official home of LOTM and Shadow Slave. WebView login, cookies reused, locked chapters shown locked, never fetched |
+| 3 | wuxiaworld.com | ⬜ planned | Official, API-based, subscription chapters locked unless the account has them |
 
-Candidates came from a web search on 2026-10-19; each needs recon (`/ext-recon`) before
-code. Qasim may add or replace sites.
+Not building (decision 2026-10-20): shadowslave.space, freewebnovel.com, novellive.com,
+readnovelfull.com, novelhi.com, noveltrust.com, wuxiaworld.eu and similar sites that republish
+paid chapters without permission. New sites go through `/ext-recon` first.
 
 Per source: popular, latest, search · details + full chapter list (follow pagination) ·
 `getChapterContent` returns sanitized HTML (strip ads, scripts, watermark spans, "read at"
@@ -37,9 +39,11 @@ footers) · `configureClient { rateLimit(...) }` · `getMangaByUrl` for pasted l
 
 ## Publishing
 
-- [ ] Generate a signing keystore, store it only in GitHub secrets (`SIGNING_KEY` base64, `ALIAS`, `KEY_STORE_PASSWORD`, `KEY_PASSWORD`) and a `BOT_PAT` with write access to `dokusho-extensions`.
-- [ ] First `build_push.yml` run writes `index.pb`, `index.json`, `index.html` to the `repo` branch and uploads APKs and JARs to Releases. `repo.json` there must then carry the real `signingKeyFingerprint`.
-- [ ] The app's extension store trusts the index only when APK signatures match `signingKey`.
+- [x] Signing keystore `~/.dokusho/signing/dokusho-extensions.jks` (PKCS12, one password: `KEY_PASSWORD` equals `KEY_STORE_PASSWORD`); secrets `SIGNING_KEY`, `ALIAS`, `KEY_STORE_PASSWORD`, `KEY_PASSWORD`, `BOT_PAT`; variable `SIGNING_KEY_FINGERPRINT`
+- [x] `build_push.yml` writes `index.pb`, `index.json`, `index.html` to the `repo` branch and uploads APKs and JARs to Releases; `repo.json` and the index carry the real fingerprint
+- [x] The app lists the published extension from `index.pb` (Royal Road seen on v0.1.0)
+- [x] CI matrix and cache job work with an empty or partial `src/` and `lib-multisrc/`
+- [ ] Replace `BOT_PAT` (currently the `gh` login token) with a fine-grained token scoped to `dokusho-extensions`, Contents read and write
 
 ## Rules of the road
 
