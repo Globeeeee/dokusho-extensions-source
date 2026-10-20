@@ -25,8 +25,10 @@ Hub; use headless Chrome `--dump-dom` instead.
 |-------|------|--------|-------|
 | 1 | royalroad.com | ✅ published 2.0.1 | Listing `.fiction-list-item`; chapters from `window.chapters` JSON with `isUnlocked`; body `.chapter-inner.chapter-content`; hidden anti-copy paragraph removed via its `display:none` class |
 | 1 | scribblehub.com | ✅ built 2.0.1 | Cards `.search_main_box`; search through Series Finder (`/series-finder/?sf=1&sh=`), the `?s=` search is a 404; full chapter list from `admin-ajax.php` `wi_getreleases_pagination` with `pagenum=-1`, falling back to `?toc=N` pages; body `#chp_raw`, author notes dropped; tables flatten to text for now |
+| 2 | wattpad.com | ✅ built 2.0.1 | JSON API on api.wattpad.com (www is blocked on some networks); hot/new/search via `/api/v3/stories`; parts and text via `/apiv2/?m=storytext&page=N`; paid Wattpad Originals parts come back as a purchase stub and are shown locked |
+| 2 | wuxiaworld.com | ✅ built 2.0.1 | gRPC-web API on api2.wuxiaworld.com with a small hand-written protobuf reader and writer; `SearchNovels`, `GetNovel`, `GetChapterList`, `GetChapter`; karma, VIP and advance chapters marked 🔒 and read as locked (`isTeaser`) |
+| 2 | archiveofourown.org | ⏸ waiting | AO3's server was down during recon (Cloudflare 525); build once its pages can be checked. robots.txt disallows search and `view_adult` URLs, so keep requests slow |
 | 3 | webnovel.com | ⬜ planned | Official home of LOTM and Shadow Slave. WebView login, cookies reused, locked chapters shown locked, never fetched |
-| 3 | wuxiaworld.com | ⬜ planned | Official, API-based, subscription chapters locked unless the account has them |
 
 Not building (decision 2026-10-20): shadowslave.space, freewebnovel.com, novellive.com,
 readnovelfull.com, novelhi.com, noveltrust.com, wuxiaworld.eu and similar sites that republish
