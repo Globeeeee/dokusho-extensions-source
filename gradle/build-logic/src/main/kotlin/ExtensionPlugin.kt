@@ -20,8 +20,8 @@ import app.dokusho.gradle.tasks.GenerateManifestTask
 import app.dokusho.gradle.tasks.GenerateSourceInfoTask
 import app.dokusho.gradle.tasks.SignExtensionJarTask
 import com.android.build.api.artifact.ScopedArtifact
-import com.android.build.api.attributes.BuildTypeAttr
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.attributes.BuildTypeAttr
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ScopedArtifacts

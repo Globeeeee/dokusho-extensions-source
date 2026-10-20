@@ -4,24 +4,24 @@ import dokusho.annotation.Source
 import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
-import dokusho.utils.parseAs
+import dokusho.utils.asJsoup
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.parser.Parser
 
 /**
- * Public-domain books from Project Gutenberg. The catalogue comes from Gutendex; each book's HTML
- * edition is split into chapters at its h2 headings.
+ * Public-domain books from Project Gutenberg. The catalogue comes from Gutenberg's own OPDS feed
+ * (fast and official); each book's HTML edition is split into chapters at its h2 headings.
  */
 @Source
 abstract class ProjectGutenberg : DokushoSource() {
@@ -32,30 +32,34 @@ abstract class ProjectGutenberg : DokushoSource() {
 
     // Listings
 
-    override suspend fun getPopularManga(page: Int): MangasPage = books(page) {}
+    override suspend fun getPopularManga(page: Int): MangasPage = catalogue(page) { addQueryParameter("sort_order", "downloads") }
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage = books(page) { addQueryParameter("sort", "descending") }
+    override suspend fun getLatestUpdates(page: Int): MangasPage = catalogue(page) { addQueryParameter("sort_order", "release_date") }
 
-    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage = books(page) { addQueryParameter("search", query) }
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage = catalogue(page) { addQueryParameter("query", query) }
 
-    private suspend fun books(page: Int, params: okhttp3.HttpUrl.Builder.() -> Unit): MangasPage {
-        val requestUrl = "$API/books/".toHttpUrl().newBuilder()
+    private suspend fun catalogue(page: Int, params: okhttp3.HttpUrl.Builder.() -> Unit): MangasPage {
+        val requestUrl = "$baseUrl/ebooks/search.opds/".toHttpUrl().newBuilder()
             .apply(params)
-            .addQueryParameter("page", page.toString())
+            .addQueryParameter("start_index", ((page - 1) * PAGE_SIZE + 1).toString())
             .build()
-        val result = client.get(requestUrl, headers).parseAs<BookListDto>()
-        return MangasPage(result.results.map { it.toManga() }, hasNextPage = result.next != null)
+        val feed = client.get(requestUrl, headers).asJsoup(Parser.xmlParser())
+        // Navigation entries (sort links) have no numeric book id and are skipped.
+        val books = feed.select("entry").mapNotNull { entry ->
+            val id = entry.bookId() ?: return@mapNotNull null
+            SManga.create().apply {
+                url = "/ebooks/$id"
+                title = entry.selectFirst("title")?.text().orEmpty()
+                author = entry.selectFirst("content")?.text()?.takeIf { it.isNotBlank() }
+                thumbnail_url = coverUrl(id)
+            }
+        }
+        return MangasPage(books, hasNextPage = feed.selectFirst("link[rel=next]") != null)
     }
 
-    private fun BookDto.toManga() = SManga.create().apply {
-        url = "/ebooks/$id"
-        title = this@toManga.title
-        author = authors.joinToString { it.name }
-        thumbnail_url = formats["image/jpeg"]
-        description = summaries.firstOrNull()
-        genre = (bookshelves.map { it.removePrefix("Category: ") } + subjects).distinct().take(12).joinToString()
-        status = SManga.COMPLETED
-    }
+    private fun Element.bookId(): String? = BOOK_FEED_ID.find(selectFirst("id")?.text().orEmpty())?.groupValues?.get(1)
+
+    private fun coverUrl(id: String) = "$baseUrl/cache/epub/$id/pg$id.cover.medium.jpg"
 
     // Details and chapters
 
@@ -69,8 +73,16 @@ abstract class ProjectGutenberg : DokushoSource() {
         val details = if (!fetchDetails) {
             manga
         } else {
-            client.get("$API/books/$id", headers).parseAs<BookDto>().toManga().apply {
+            val entry = client.get("$baseUrl/ebooks/$id.opds", headers).asJsoup(Parser.xmlParser())
+                .select("entry").firstOrNull { it.bookId() == id }
+            SManga.create().apply {
                 url = manga.url
+                title = entry?.selectFirst("title")?.text() ?: manga.title
+                author = entry?.select("author > name")?.eachText()?.joinToString()?.ifBlank { null } ?: manga.author
+                description = entry?.selectFirst("content")?.text()
+                genre = entry?.select("category")?.map { it.attr("term") }?.filter { it.isNotBlank() }?.take(12)?.joinToString()
+                thumbnail_url = coverUrl(id)
+                status = SManga.COMPLETED
                 initialized = true
             }
         }
@@ -123,27 +135,9 @@ abstract class ProjectGutenberg : DokushoSource() {
         return document
     }
 
-    // DTOs
-
-    @Serializable
-    private class BookListDto(val results: List<BookDto> = emptyList(), val next: String? = null)
-
-    @Serializable
-    private class BookDto(
-        val id: Int,
-        val title: String = "",
-        val authors: List<PersonDto> = emptyList(),
-        val subjects: List<String> = emptyList(),
-        val bookshelves: List<String> = emptyList(),
-        val summaries: List<String> = emptyList(),
-        val formats: Map<String, String> = emptyMap(),
-    )
-
-    @Serializable
-    private class PersonDto(@SerialName("name") val name: String = "")
-
     companion object {
-        private const val API = "https://gutendex.com"
+        private const val PAGE_SIZE = 25
+        private val BOOK_FEED_ID = Regex("""/ebooks/(\d+)\.opds""")
         private val BOOK_ID = Regex("""/ebooks/(\d+)""")
     }
 }

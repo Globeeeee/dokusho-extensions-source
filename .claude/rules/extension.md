@@ -58,7 +58,7 @@ private fun Element.toChapterHtml(): String {
 }
 ```
 
-Strip: ads, "read at <site>" footers, author begging lines injected by aggregators, hidden
+Strip: ads, "read at <site>" footers, injected promo or watermark lines, hidden
 anti-copy spans (`style*=display:none`, random-class spans with junk text), inline styles.
 Keep: `p`, `h1`-`h4`, `em`, `strong`, `br`, `hr`, `blockquote`, `img`.
 
