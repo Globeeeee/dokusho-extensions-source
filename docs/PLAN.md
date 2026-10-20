@@ -17,7 +17,7 @@ Hub; use headless Chrome `--dump-dom` instead.
 - [x] Release builds work in CI: the provided-classpath configuration pins the stub's release variant
 - [x] APKs named `dokusho-<lang>.<name>-v<version>.apk`
 - [x] Docs (README, `CLAUDE.md`, `.claude/rules/extension.md`) describe the local stub, the `ContentWarning` import and the scaffolder
-- [ ] Done when: the APK loads in the app. Built and listed in the store; loading to be confirmed on app v0.1.1.
+- [x] Done when: the APK loads in the app. Confirmed on device with six extensions (2026-10-20).
 
 ## Phase 4. Sources
 
