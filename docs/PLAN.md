@@ -3,8 +3,8 @@
 The extension slice of the master plan in `dokusho/docs/PLAN.md`. This repo builds the
 extension APKs; `Globeeeee/dokusho-extensions` (branch `repo`) is where they get published.
 
-Status (2026-10-20): phase 1 toolchain done. Royal Road 2.0.1 is built, signed and published to
-the store index. Scribble Hub is next. Cloudflare blocks curl recon on Royal Road and Scribble
+Status (2026-10-20): phase 1 toolchain done. Royal Road 2.0.1 and Scribble Hub 2.0.1 are built, signed and
+published to the store index. Webnovel and WuxiaWorld (with login) are next. Cloudflare blocks curl recon on Royal Road and Scribble
 Hub; use headless Chrome `--dump-dom` instead.
 
 ## Phase 1. Toolchain for text (with app phase 1)
@@ -24,7 +24,7 @@ Hub; use headless Chrome `--dump-dom` instead.
 | Batch | Site | Status | Notes |
 |-------|------|--------|-------|
 | 1 | royalroad.com | ✅ published 2.0.1 | Listing `.fiction-list-item`; chapters from `window.chapters` JSON with `isUnlocked`; body `.chapter-inner.chapter-content`; hidden anti-copy paragraph removed via its `display:none` class |
-| 1 | scribblehub.com | ⬜ next, recon done | Listing page has 25 cards; chapter list paginated via AJAX |
+| 1 | scribblehub.com | ✅ built 2.0.1 | Cards `.search_main_box`; search through Series Finder (`/series-finder/?sf=1&sh=`), the `?s=` search is a 404; full chapter list from `admin-ajax.php` `wi_getreleases_pagination` with `pagenum=-1`, falling back to `?toc=N` pages; body `#chp_raw`, author notes dropped; tables flatten to text for now |
 | 3 | webnovel.com | ⬜ planned | Official home of LOTM and Shadow Slave. WebView login, cookies reused, locked chapters shown locked, never fetched |
 | 3 | wuxiaworld.com | ⬜ planned | Official, API-based, subscription chapters locked unless the account has them |
 
