@@ -7,7 +7,7 @@ plugins {
 dokusho {
     name = "LightNovelHeaven"
     theme = "madara"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.MIXED
     libVersion = "2.0"
 

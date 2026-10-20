@@ -7,7 +7,7 @@ plugins {
 dokusho {
     name = "NovelLive"
     theme = "readnovelfull"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "2.0"
 
