@@ -11,7 +11,7 @@ blocks curl recon on Royal Road and Scribble Hub; use headless Chrome `--dump-do
 - [x] `:extensions-lib` stub module replaces the JitPack `com.github.keiyoushi:extensions-lib` dependency. It mirrors `dokusho/source-api` exactly: `NovelSource`, `ChapterContent`, `HttpNovelSource`, plus everything Mihon already had.
 - [x] `gradle/build-logic` `Constant.kt`: `VALID_LIB_VERSIONS = listOf("2.0")`; `GenerateManifestTask` emits feature `dokusho.extension` and `dokusho.*` meta-data keys.
 - [x] `core/DokushoSource.kt`: `abstract suspend fun getChapterContent(chapter: SChapter): ChapterContent`; `getPageList` defaults to empty.
-- [ ] `ext-bootstrap.py` generates a novel template (popular, latest, search, `fetchMangaUpdate`, `getChapterContent`).
+- [x] `ext-bootstrap.py` generates a novel template (popular, latest, search, `fetchMangaUpdate`, `getChapterContent`); verified by generating and building a throwaway module.
 - [x] `src/en/royalroad` builds (APK `dokusho-en.royalroad-v2.0.1.apk`); selectors checked against live pages (listing cards, `window.chapters` JSON with `isUnlocked`, chapter body, hidden anti-copy class). Install and in-app reading verified once the reader lands.
 - Done when: `./gradlew :src:en:royalroad:assembleDebug` produces an APK the app loads.
 

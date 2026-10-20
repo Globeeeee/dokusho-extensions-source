@@ -57,8 +57,9 @@ chapter HTML · stable ids · anything asked for.
 | Base class, helpers | `core/src/main/kotlin/dokusho/{source/DokushoSource.kt,network,utils}` |
 | Codegen | `compiler/` (KSP, `@Source` → `dokusho.source.Generated`) |
 | Build plugins | `gradle/build-logic/src/main/kotlin/` (`ExtensionPlugin`, `GenerateManifestTask`, `internal/Constant.kt`) |
-| Versions | `gradle/libs.versions.toml` (extensions-lib, okhttp, jsoup) · `gradle/dok.versions.toml` (SDKs) |
-| Scaffolder | `ext-bootstrap.py` |
+| Versions | `gradle/libs.versions.toml` (okhttp, jsoup, kotlinx.serialization) · `gradle/dok.versions.toml` (SDKs) |
+| Stub API | `extensions-lib/` (mirror of `dokusho/source-api`, lib 2.0) |
+| Scaffolder | `ext-bootstrap.py` (novel template, run `/ext-recon` first) |
 | Publish | `.github/workflows/build_push.yml` · `.github/scripts/publish-repo.py` · `index.proto` |
 
 ## Verify

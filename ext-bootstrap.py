@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-LIB_VERSION = "1.6"
+LIB_VERSION = "2.0"
 
 
 def ascii_validator(value: str) -> str:
@@ -115,44 +115,106 @@ def write_multisrc_source(f, args: argparse.Namespace, classname: str) -> None:
 
 
 def write_keisource_source(f, classname: str) -> None:
-    f.write("import eu.kanade.tachiyomi.source.model.FilterList\n")
-    f.write("import eu.kanade.tachiyomi.source.model.MangasPage\n")
-    f.write("import eu.kanade.tachiyomi.source.model.Page\n")
-    f.write("import eu.kanade.tachiyomi.source.model.SChapter\n")
-    f.write("import eu.kanade.tachiyomi.source.model.SManga\n")
-    f.write("import eu.kanade.tachiyomi.source.model.SMangaUpdate\n")
-    f.write("import dokusho.annotation.Source\n")
-    f.write("import dokusho.source.DokushoSource\n")
-    f.write("import okhttp3.HttpUrl\n")
-    f.write("import java.lang.UnsupportedOperationException\n\n")
+    """Novel extension skeleton: listing, details with chapters, and sanitized chapter text."""
+    f.write(
+        """import dokusho.annotation.Source
+import dokusho.network.get
+import dokusho.network.rateLimit
+import dokusho.source.DokushoSource
+import dokusho.utils.asJsoup
+import eu.kanade.tachiyomi.source.model.ChapterContent
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import okhttp3.Headers
+import okhttp3.OkHttpClient
+import org.jsoup.nodes.Document
 
+"""
+    )
     f.write("@Source\n")
-    f.write(f"abstract class {classname} : DokushoSource() {{\n\n")
-
+    f.write(f"abstract class {classname} : DokushoSource() {{\n")
     f.write(
-        "\toverride suspend fun getPopularManga(page: Int): MangasPage = throw UnsupportedOperationException()\n\n"
-    )
-    f.write(
-        "\toverride suspend fun getLatestUpdates(page: Int): MangasPage = throw UnsupportedOperationException()\n\n"
-    )
-    f.write(
-        "\toverride suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage =\n"
-        "\t\tthrow UnsupportedOperationException()\n\n"
-    )
+        """
+    // Run /ext-recon first and replace every selector below with what the site really uses.
 
-    f.write("\toverride suspend fun getMangaByUrl(url: HttpUrl): SManga? = null\n\n")
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(2)
 
-    f.write("\toverride suspend fun fetchMangaUpdate(\n")
-    f.write("\t\tmanga: SManga,\n")
-    f.write("\t\tchapters: List<SChapter>,\n")
-    f.write("\t\tfetchDetails: Boolean,\n")
-    f.write("\t\tfetchChapters: Boolean,\n")
-    f.write("\t): SMangaUpdate = throw UnsupportedOperationException()\n\n")
+    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
-    f.write(
-        "\toverride suspend fun getPageList(chapter: SChapter): List<Page> = throw UnsupportedOperationException()\n"
+    override suspend fun getPopularManga(page: Int): MangasPage =
+        parseListing(client.get("$baseUrl/popular?page=$page", headers).asJsoup(), page)
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage =
+        parseListing(client.get("$baseUrl/latest?page=$page", headers).asJsoup(), page)
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage =
+        parseListing(client.get("$baseUrl/search?q=$query&page=$page", headers).asJsoup(), page)
+
+    private fun parseListing(document: Document, page: Int): MangasPage {
+        val novels = document.select(".novel-item").mapNotNull { card ->
+            val link = card.selectFirst("a") ?: return@mapNotNull null
+            SManga.create().apply {
+                setUrlWithoutDomain(link.absUrl("href"))
+                title = link.text()
+                thumbnail_url = card.selectFirst("img")?.absUrl("src")
+            }
+        }
+        return MangasPage(novels, hasNextPage = document.selectFirst("a[rel=next]") != null)
+    }
+
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val document = client.get(getMangaUrl(manga), headers).asJsoup()
+        val details = if (!fetchDetails) {
+            manga
+        } else {
+            SManga.create().apply {
+                url = manga.url
+                title = document.selectFirst("h1")?.text() ?: manga.title
+                author = document.selectFirst(".author")?.text()
+                description = document.selectFirst(".description")?.text()
+                genre = document.select(".genres a").eachText().joinToString()
+                status = SManga.UNKNOWN
+                initialized = true
+            }
+        }
+        // Newest chapter first. Follow pagination if the site splits the list.
+        val chapterList = if (!fetchChapters) {
+            chapters
+        } else {
+            document.select(".chapter-list a").map { link ->
+                SChapter.create().apply {
+                    setUrlWithoutDomain(link.absUrl("href"))
+                    name = link.text()
+                }
+            }.reversed()
+        }
+        return SMangaUpdate(details, chapterList)
+    }
+
+    override suspend fun getChapterContent(chapter: SChapter): ChapterContent {
+        val response = client.get(getChapterUrl(chapter), headers, ensureSuccess = false)
+        if (response.code == 401 || response.code == 403) {
+            response.close()
+            return ChapterContent(html = "", locked = true)
+        }
+        val document = response.asJsoup()
+        val body = document.selectFirst(".chapter-content")
+            ?: return ChapterContent(html = "", title = chapter.name, locked = true)
+        body.select("script, style, iframe, ins, noscript, .ads, [style*=display:none]").remove()
+        body.select("a, span").unwrap()
+        return ChapterContent(html = body.html(), title = document.selectFirst("h1")?.text())
+    }
+}
+"""
     )
-    f.write("}\n")
 
 
 def write_source_file(

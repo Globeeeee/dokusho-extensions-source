@@ -76,7 +76,7 @@ not match the published index. CI signs from repository secrets (`docs/SECRETS.m
 | Error | Fix |
 |-------|-----|
 | `Dependency requires at least JVM runtime version 21` | set `JAVA_HOME` to a JDK 21 |
-| `Could not resolve com.github.keiyoushi:extensions-lib` | network or JitPack outage; retry. Replaced by a local module in phase 1 |
+| `Could not resolve project ':extensions-lib'` | run Gradle from the repo root; the stub module lives in `extensions-lib/` |
 | `project 'src' not found` | there is no extension yet; build `:core` instead |
 | spotless failures | `./gradlew spotlessApply` |
 

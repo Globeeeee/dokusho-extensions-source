@@ -6,6 +6,8 @@ Read for SOURCE, TOOLCHAIN and BUGFIX work. Only the sections your mode needs.
 
 ```kotlin
 // src/en/royalroad/build.gradle.kts
+import app.dokusho.gradle.api.ContentWarning   // required, the DSL does not import it
+
 plugins { alias(dok.plugins.extension) }
 dokusho {
     name = "Royal Road"
@@ -77,8 +79,10 @@ set `theme = "<name>"` in the DSL and extend the class in a few lines. Bump the 
 ## Toolchain (TOOLCHAIN)
 
 - `gradle/build-logic/.../internal/Constant.kt`: `VALID_LIB_VERSIONS`.
-- `GenerateManifestTask.kt`: `uses-feature` and meta-data names. Phase 1 changes them to `dokusho.*`.
-- `ExtensionPlugin.kt`: `compileOnly(libs.tachiyomi.lib.v16)` → phase 1 swaps to `project(":extensions-lib")`.
+- `GenerateManifestTask.kt`: writes `uses-feature dokusho.extension` and the `dokusho.*` meta-data the app loader requires.
+- `ExtensionPlugin.kt`: `compileOnly(project(":extensions-lib"))`; the provided-classpath configuration pins the stub's release variant. APKs are named `dokusho-<lang>.<name>-v<version>.apk`.
+- `extensions-lib/`: compile-time stubs (vendored from keiyoushi/extensions-lib, Apache 2.0) plus `NovelSource`, `ChapterContent`, `HttpNovelSource`. Must mirror `dokusho/source-api`; change both in the same PR.
+- `ext-bootstrap.py`: scaffolds a lib 2.0 novel module (listing, details with chapters, sanitized `getChapterContent`); selectors are placeholders until `/ext-recon` fills them.
 - `core/.../DokushoSource.kt`: base class; `getChapterContent` added in phase 1.
 - `compiler/.../SourceProcessor.kt`: generates `dokusho.source.Generated`.
 - Version code math: Android `versionCode = libDigits * 1000 + versionCode`, `versionName = "$libVersion.$versionCode"`.
