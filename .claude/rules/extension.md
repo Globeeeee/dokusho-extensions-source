@@ -33,7 +33,7 @@ dokusho {
 | Member | Purpose |
 |--------|---------|
 | `OkHttpClient.Builder.configureClient()` | add `rateLimit(permits, period)`, interceptors. Cloudflare interceptor is moved after yours automatically |
-| `Headers.Builder.configureHeaders()` | Referer, UA, `setRandomUserAgent()` from `lib/randomua` |
+| `Headers.Builder.configureHeaders()` | UA, `setRandomUserAgent()` from `lib/randomua`; Referer and Origin are set by core, use `set` to change them |
 | `getPopularManga(page)`, `getLatestUpdates(page)`, `getSearchMangaList(page, query, filters)` | return `MangasPage(list, hasNextPage)` |
 | `fetchMangaUpdate(manga, chapters, fetchDetails, fetchChapters)` | details and chapter list in one call; follow pagination; cache site ids in `manga.memo` |
 | `getChapterContent(chapter)` | **new in 2.0**: fetch chapter page, return `ChapterContent(html, title)` |

@@ -41,7 +41,7 @@ chapter HTML · stable ids · anything asked for.
 |------|-----|
 | Module shape | `src/<lang>/<name>/build.gradle.kts` + `res/mipmap-*` + one `@Source abstract class X : DokushoSource()`. No manifest, it is generated. |
 | Content | `getChapterContent` returns sanitized HTML: paragraphs, headings, emphasis, images with absolute URLs. Strip scripts, ads, watermark spans, "read at" footers. |
-| Network | `configureClient { rateLimit(n) }`. Leave Cloudflare to the app interceptor. Set Referer in `configureHeaders`. |
+| Network | `configureClient { rateLimit(n) }`. Leave Cloudflare to the app interceptor. Core already sets `Referer: $baseUrl/`; override `configureHeaders` only for a different value. |
 | Accounts | Login only through the app WebView; cookies come from the shared jar. A locked chapter returns `ChapterContent` with a locked flag, never a fetched copy from elsewhere. |
 | Logging | No `println`, no `Log.*`. Extensions do not log. |
 | Secrets | Never in source, commits, chat, logs or tool output. Local copies only in `~/.dokusho/signing/`; CI uses GitHub secrets; repos hold `.env.example` with names only. Pass values from files (`--body "$(cat f)"`), never as literals. Never read `.env`, keystores or `~/.dokusho` into context. Policy: `docs/SECRETS.md` in the app repo. |
