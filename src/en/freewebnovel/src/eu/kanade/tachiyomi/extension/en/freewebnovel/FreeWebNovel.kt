@@ -19,7 +19,7 @@ abstract class FreeWebNovel : ReadNovelFull() {
 
     override fun listingUrl(path: String, page: Int): String = if (page <= 1) "$baseUrl/$path" else "$baseUrl/$path/$page"
 
-    // Search is a single POST form without paging.
+    // Search is a single POST form without paging. The site renamed the field from searchkey to keyword in 2026; send both.
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         if (page > 1) return MangasPage(emptyList(), false)
         val body = FormBody.Builder().add("searchkey", query).add("keyword", query).build()
@@ -27,10 +27,24 @@ abstract class FreeWebNovel : ReadNovelFull() {
         return MangasPage(result.mangas, false)
     }
 
-    // The TOC pages hold 40 chapters each; chapter URLs are a stable /novel/<slug>/chapter-N.
+    // The novel page lists only the first 40 chapters, but chapter URLs are a stable /novel/<slug>/chapter-N,
+    // so the list is numbered up to the last range of the #indexselect picker ("C.3201 - C.3212" gives 3212).
     override suspend fun fetchChapterList(document: Document, manga: SManga): List<SChapter> {
-        val latest = latestFromIndexSelect(document).takeIf { it > 0 }
+        val latest = document.select("#indexselect option").lastOrNull()?.text()
+            ?.let { TRAILING_NUMBER.find(it)?.groupValues?.get(1)?.toIntOrNull() }
             ?: document.select("#idData li a").size
-        return numberedChapters(manga.url, latest)
+        val novelPath = manga.url.trimEnd('/')
+        return (latest.coerceAtMost(MAX_CHAPTERS) downTo 1).map { number ->
+            SChapter.create().apply {
+                url = "$novelPath/chapter-$number"
+                name = "Chapter $number"
+                chapter_number = number.toFloat()
+            }
+        }
+    }
+
+    companion object {
+        private val TRAILING_NUMBER = Regex("""(\d+)\D*$""")
+        private const val MAX_CHAPTERS = 50_000
     }
 }

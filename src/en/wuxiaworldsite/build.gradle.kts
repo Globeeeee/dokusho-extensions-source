@@ -7,7 +7,7 @@ plugins {
 dokusho {
     name = "WuxiaWorld.site"
     theme = "madara"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.MIXED
     libVersion = "2.0"
 

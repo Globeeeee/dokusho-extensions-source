@@ -5,6 +5,8 @@ import dokusho.network.post
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -12,14 +14,11 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import okhttp3.FormBody
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -31,8 +30,6 @@ abstract class Madara : DokushoSource() {
     protected open val novelPath = "novel"
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 3, period = 2.seconds)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -55,8 +52,14 @@ abstract class Madara : DokushoSource() {
         return "$baseUrl/$novelPath/$pagePath?m_orderby=$order"
     }
 
+    // The "load more" button is on every page, including the last, so the page after it is a 404.
     private suspend fun listing(url: String, itemSelector: String): MangasPage {
-        val document = client.get(url, headers).asJsoup()
+        val response = client.get(url, headers, ensureSuccess = false)
+        if (response.code == 404) {
+            response.close()
+            return MangasPage(emptyList(), false)
+        }
+        val document = response.asJsoup()
         val novels = document.select(itemSelector).mapNotNull { item ->
             val link = item.selectFirst("div.post-title a[href]") ?: return@mapNotNull null
             SManga.create().apply {
@@ -65,7 +68,7 @@ abstract class Madara : DokushoSource() {
                 thumbnail_url = item.selectFirst("img")?.imageUrl()
             }
         }
-        val hasNext = novels.isNotEmpty() && document.selectFirst("nav.navigation-ajax, div.nav-previous a, a.nextpostslink") != null
+        val hasNext = novels.isNotEmpty() && document.selectFirst("nav.navigation-ajax, div.nav-previous a") != null
         return MangasPage(novels, hasNext)
     }
 
@@ -77,11 +80,13 @@ abstract class Madara : DokushoSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get(getMangaUrl(manga), headers).asJsoup()
-        val details = if (fetchDetails) parseDetails(document, manga) else manga
-        val chapterList = if (fetchChapters) fetchChapterList(document, manga) else chapters
+        val details = if (fetchDetails) parseDetails(client.get(getMangaUrl(manga), headers).asJsoup(), manga) else manga
+        val chapterList = if (fetchChapters) fetchChapterList(manga) else chapters
         return SMangaUpdate(details, chapterList)
     }
+
+    /** A site promo paragraph to drop from the description, such as "You're Reading X at <site>". */
+    protected open val promoLine: Regex? = null
 
     private fun parseDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
         url = manga.url
@@ -90,7 +95,8 @@ abstract class Madara : DokushoSource() {
         author = document.select("div.author-content a").eachText().joinToString()
         genre = document.select("div.genres-content a").eachText().joinToString()
         description = document.selectFirst("div.summary__content, div.description-summary")?.let { summary ->
-            summary.select("p").eachText().joinToString("\n\n").ifBlank { summary.text() }
+            summary.select("p").eachText().filterNot { promoLine?.containsMatchIn(it) == true }
+                .joinToString("\n\n").ifBlank { summary.text() }
         }
         val statusText = document.selectFirst("div.post-content_item:has(h5:contains(Status)) div.summary-content")?.text().orEmpty()
         status = when {
@@ -103,30 +109,24 @@ abstract class Madara : DokushoSource() {
         initialized = true
     }
 
-    private suspend fun fetchChapterList(document: Document, manga: SManga): List<SChapter> {
+    // The novel page has no chapters; this endpoint returns all of them, newest first.
+    private suspend fun fetchChapterList(manga: SManga): List<SChapter> {
         val ajaxHeaders = headers.newBuilder().add("X-Requested-With", "XMLHttpRequest").build()
-        var items = document.select("li.wp-manga-chapter")
-        if (items.isEmpty()) {
-            val novelUrl = getMangaUrl(manga).trimEnd('/')
-            items = client.post("$novelUrl/ajax/chapters/", ajaxHeaders, FormBody.Builder().build(), ensureSuccess = false)
-                .asJsoup().select("li.wp-manga-chapter")
-        }
-        if (items.isEmpty()) {
-            val postId = document.selectFirst("#manga-chapters-holder[data-id]")?.attr("data-id")
-            if (!postId.isNullOrBlank()) {
-                val body = FormBody.Builder().add("action", "manga_get_chapters").add("manga", postId).build()
-                items = client.post("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, body, ensureSuccess = false)
-                    .asJsoup().select("li.wp-manga-chapter")
-            }
-        }
+        val novelUrl = getMangaUrl(manga).trimEnd('/')
+        val items = client.post("$novelUrl/ajax/chapters/", ajaxHeaders, FormBody.Builder().build())
+            .asJsoup().select("li.wp-manga-chapter")
         return items.mapNotNull { item ->
             val link = item.selectFirst("a[href]") ?: return@mapNotNull null
             SChapter.create().apply {
                 setUrlWithoutDomain(link.absUrl("href"))
                 name = link.text().replace(INVISIBLE, "").replace(SPACES, " ").trim()
                 CHAPTER_NUMBER.find(name)?.groupValues?.get(1)?.toFloatOrNull()?.let { chapter_number = it }
-                date_upload = item.selectFirst("span.chapter-release-date i")?.text()
-                    ?.let { runCatching { DATE_FORMAT.parse(it)?.time }.getOrNull() } ?: 0L
+                val release = item.selectFirst("span.chapter-release-date")
+                date_upload = parseChapterDate(
+                    release?.selectFirst("i")?.text()?.takeIf { it.isNotBlank() }
+                        // Recent chapters carry a "2 hours ago" title on a c-new-tag link instead of an <i> date.
+                        ?: release?.selectFirst("[title]")?.attr("title")?.takeIf { it.isNotBlank() },
+                )
             }
         }
     }
@@ -136,17 +136,10 @@ abstract class Madara : DokushoSource() {
     override suspend fun getChapterContent(chapter: SChapter): ChapterContent {
         val document = client.get(getChapterUrl(chapter), headers).asJsoup()
         val title = document.selectFirst("#chapter-heading")?.text()
-        val body = document.selectFirst("div.reading-content div.text-left, div.reading-content")
+        val body = document.selectFirst("div.reading-content")
             ?: return ChapterContent(html = "", title = title ?: chapter.name, locked = true)
-        body.select("script, style, iframe, ins, noscript, input, .adsbygoogle, div.ads, div.code-block").remove()
-        body.select("a, span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.imageUrl() else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
-        val html = body.html().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
+        body.select("div.code-block").remove()
+        val html = body.sanitizedChapterHtml(imageUrl = { it.imageUrl() }).ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
         return ChapterContent(html = html, title = title ?: chapter.name)
     }
 
@@ -158,13 +151,12 @@ abstract class Madara : DokushoSource() {
         return parseDetails(client.get(getMangaUrl(manga), headers).asJsoup(), manga)
     }
 
-    protected fun Element.imageUrl(): String? = listOf("data-src", "data-lazy-src", "src").map(::absUrl)
-        .firstOrNull { it.isNotBlank() && "dflazy" !in it && !it.startsWith("data:") }
+    private fun Element.imageUrl(): String? = listOf("data-src", "data-lazy-src", "src").map(::absUrl)
+        .firstOrNull { it.startsWith("http") && "dflazy" !in it }
 
     companion object {
         private val INVISIBLE = Regex("[\u200b\u200c\u200d\ufeff]")
         private val SPACES = Regex("""\s+""")
         private val CHAPTER_NUMBER = Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
-        private val DATE_FORMAT = SimpleDateFormat("MMMM d, yyyy", Locale.US)
     }
 }

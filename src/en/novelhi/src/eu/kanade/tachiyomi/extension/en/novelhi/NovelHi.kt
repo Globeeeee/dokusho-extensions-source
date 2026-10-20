@@ -6,6 +6,8 @@ import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
 import dokusho.utils.parseAs
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -13,12 +15,12 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import kotlinx.serialization.Serializable
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -31,8 +33,6 @@ abstract class NovelHi : DokushoSource() {
 
     // The search endpoint answers "your search is too fast" above roughly one call per two seconds.
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 1, period = 2.seconds)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     override val supportsLatest get() = false
 
@@ -83,14 +83,23 @@ abstract class NovelHi : DokushoSource() {
 
     private fun parseDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
         url = manga.url
-        title = document.hidden("bookNamedHidden") ?: manga.title
-        author = document.hidden("authorName") ?: manga.author
-        description = document.selectFirst("p.mobile-detail-desc")?.wholeText()?.trim() ?: manga.description
-        thumbnail_url = manga.thumbnail_url ?: document.hidden("bookId")?.let { "https://img.novelhi.com/cover/$it.webp" }
+        val info = document.selectFirst("div.book_info")
+        title = info?.selectFirst("h1")?.text() ?: manga.title
+        author = info?.infoItem("Author") ?: manga.author
+        description = document.selectFirst("p.detail-desc")?.wholeText()?.trim() ?: manga.description
+        thumbnail_url = document.selectFirst("img.cover")?.absUrl("src")?.ifBlank { null } ?: manga.thumbnail_url
         genre = manga.genre
-        status = manga.status
+        status = when (info?.infoItem("Status")?.lowercase()) {
+            "ongoing" -> SManga.ONGOING
+            "completed" -> SManga.COMPLETED
+            else -> manga.status
+        }
         initialized = true
     }
+
+    private fun Element.infoItem(label: String): String? = select("span.item")
+        .firstOrNull { it.ownText().startsWith("$label:") }
+        ?.selectFirst("em")?.text()
 
     private suspend fun fetchChapterList(document: Document): List<SChapter> {
         val bookId = document.hidden("bookId") ?: return emptyList()
@@ -106,6 +115,7 @@ abstract class NovelHi : DokushoSource() {
                 this.url = "$novelPath/${item.indexNum}"
                 name = (if (item.isVip == "1") "$LOCK " else "") + item.indexName
                 chapter_number = item.indexNum.toFloatOrNull() ?: -1f
+                date_upload = parseChapterDate(item.createTime)
             }
         }.sortedByDescending { it.chapter_number }
     }
@@ -122,7 +132,7 @@ abstract class NovelHi : DokushoSource() {
     override suspend fun getChapterContent(chapter: SChapter): ChapterContent {
         val chapterUrl = getChapterUrl(chapter)
         val page = client.get(chapterUrl, headers).asJsoup()
-        val title = page.hidden("indexNameHidden") ?: chapter.name
+        val title = page.hidden("currentIndexName") ?: chapter.name
         val path = page.hidden("chapterContentPath")
         val token = page.hidden("chapterContentToken")
         if (path == null || token == null) return ChapterContent(html = "", title = title, locked = true)
@@ -131,19 +141,22 @@ abstract class NovelHi : DokushoSource() {
             .set("Referer", chapterUrl)
             .set("X-Requested-With", "XMLHttpRequest")
             .build()
-        val contentUrl = (if (path.startsWith("http")) path else "$baseUrl/${path.trimStart('/')}").toHttpUrl()
+        // The path comes from the page; keep it on this host.
+        val contentUrl = "$baseUrl/${path.trimStart('/')}".toHttpUrl()
             .newBuilder().addQueryParameter("token", token).build()
         val response = client.get(contentUrl, contentHeaders, ensureSuccess = false)
-            .parseAs<ApiResponse<ContentDto>>()
+        if (!response.isSuccessful) {
+            response.close()
+            return ChapterContent(html = "", title = title, locked = true)
+        }
         // Daily guest limit and VIP chapters come back without text.
-        val raw = response.data?.content?.takeIf { it.isNotBlank() }
+        val raw = response.parseAs<ApiResponse<ContentDto>>().data?.content?.takeIf { it.isNotBlank() }
             ?: return ChapterContent(html = "", title = title, locked = true)
 
-        val html = rot13OutsideTags(raw)
-            .replace(SENT_OPEN, "<p>")
-            .replace(SENT_CLOSE, "</p>")
-            .replace(BR, "")
-        return ChapterContent(html = html, title = title)
+        val body = Jsoup.parseBodyFragment(rot13OutsideTags(raw), baseUrl).body()
+        body.select("sent").tagName("p")
+        body.select("br").remove()
+        return ChapterContent(html = body.sanitizedChapterHtml(), title = title)
     }
 
     // Helpers
@@ -179,7 +192,12 @@ abstract class NovelHi : DokushoSource() {
     private class GenreDto(val genreName: String = "")
 
     @Serializable
-    private class IndexDto(val indexNum: String, val indexName: String = "", val isVip: String? = null)
+    private class IndexDto(
+        val indexNum: String,
+        val indexName: String = "",
+        val isVip: String? = null,
+        val createTime: String? = null,
+    )
 
     @Serializable
     private class ContentDto(val content: String? = null)
@@ -188,8 +206,6 @@ abstract class NovelHi : DokushoSource() {
         private const val PAGE_SIZE = 20
         private const val LOCK = "🔒"
         private val BR = Regex("<br\\s*/?>", RegexOption.IGNORE_CASE)
-        private val SENT_OPEN = Regex("<sent\\b[^>]*>", RegexOption.IGNORE_CASE)
-        private val SENT_CLOSE = Regex("</sent>", RegexOption.IGNORE_CASE)
         private val TAG_OR_LETTER = Regex("(<[^>]+>)|[a-zA-Z]")
     }
 }

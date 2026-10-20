@@ -4,22 +4,23 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.sanitizeChapter
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.text.Normalizer
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Sites on the ReadNovelFull engine (readnovelfull.com, freewebnovel.com, novellive.app, novgo.net, novelphoenix.net). Listing rows,
+ * Sites on the ReadNovelFull engine (readnovelfull.com, freewebnovel.com, novellive.com, novgo.net, novelphoenix.net). Listing rows,
  * the info block and the chapter body share markup; children set the listing paths and how the
  * chapter list is paged.
  */
@@ -29,8 +30,6 @@ abstract class ReadNovelFull : DokushoSource() {
     protected abstract val latestPath: String
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 3, period = 2.seconds)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -51,11 +50,13 @@ abstract class ReadNovelFull : DokushoSource() {
 
     protected suspend fun listing(url: String): MangasPage = parseListing(client.get(url, headers).asJsoup())
 
-    protected open val listingRowSelector = "div.list-novel div.row, div.ul-list1 div.li-row"
+    // ReadNovelFull rows, then the FreeWebNovel layout every other child uses.
+    private val listingRowSelector = "div.list-novel div.row, div.ul-list1 div.li-row"
 
-    protected open val nextPageSelector = "ul.pagination li.next:not(.disabled) a, div.pages a:contains(>>)"
+    // ReadNovelFull and NovelLive use a Bootstrap pager; FreeWebNovel renders a missing page as a javascript: link.
+    protected open val nextPageSelector = "ul.pagination li.next:not(.disabled) a, div.pages a[href^=/]:contains(>>)"
 
-    protected open fun parseListing(document: Document): MangasPage {
+    protected fun parseListing(document: Document): MangasPage {
         val novels = document.select(listingRowSelector).mapNotNull(::listingRow)
         return MangasPage(novels, document.selectFirst(nextPageSelector) != null)
     }
@@ -83,19 +84,18 @@ abstract class ReadNovelFull : DokushoSource() {
         return SMangaUpdate(details, chapterList)
     }
 
-    protected open fun parseDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
+    private fun parseDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
         url = manga.url
         title = document.selectFirst("div.books h3.title, div.m-desc h1.tit")?.text() ?: manga.title
         thumbnail_url = document.selectFirst("div.books img, div.m-imgtxt .pic img")?.imageUrl() ?: manga.thumbnail_url
-        author = document.select("ul.info-meta li:has(h3:contains(Author)) a, div.m-imgtxt a[href*=/author]")
-            .eachText().joinToString().ifBlank { document.metaContent("og:novel:author") }
+        author = document.select("ul.info-meta li:has(h3:contains(Author)) a, div.m-imgtxt a[href*=/author]").eachText().joinToString()
         genre = document.select("ul.info-meta li:has(h3:contains(Genre)) a, div.m-imgtxt a[href*=/genre]")
-            .eachText().distinct().joinToString().ifBlank { document.metaContent("og:novel:genre") }
+            .eachText().distinct().joinToString()
         description = document.selectFirst("div.desc-text, div.m-desc div.inner")?.let { desc ->
             desc.select("p").eachText().joinToString("\n\n").ifBlank { desc.wholeText().trim() }
         }
-        val statusText = document.selectFirst("ul.info-meta li:has(h3:contains(Status)), div.m-imgtxt div.item:has([title=Status])")?.text()
-            ?: document.metaContent("og:novel:status").orEmpty()
+        val statusText = document
+            .selectFirst("ul.info-meta li:has(h3:contains(Status)), div.m-imgtxt div.item:has([title=Status])")?.text().orEmpty()
         status = when {
             statusText.contains("ongoing", ignoreCase = true) -> SManga.ONGOING
             statusText.contains("completed", ignoreCase = true) -> SManga.COMPLETED
@@ -105,21 +105,8 @@ abstract class ReadNovelFull : DokushoSource() {
         initialized = true
     }
 
+    /** Every chapter of the novel, newest first. */
     protected abstract suspend fun fetchChapterList(document: Document, manga: SManga): List<SChapter>
-
-    /** Latest chapter number from the `#indexselect` page picker ("C.3201 - C.3220" gives 3220). */
-    protected fun latestFromIndexSelect(document: Document): Int = document.select("#indexselect option").lastOrNull()?.text()
-        ?.let { TRAILING_NUMBER.find(it)?.groupValues?.get(1)?.toIntOrNull() }
-        ?: 0
-
-    /** Chapters 1..[latest] at `<novel path>/chapter-N`, newest first, for sites with stable chapter URLs. */
-    protected fun numberedChapters(novelPath: String, latest: Int): List<SChapter> = (latest downTo 1).map { number ->
-        SChapter.create().apply {
-            url = "${novelPath.trimEnd('/')}/chapter-$number"
-            name = "Chapter $number"
-            chapter_number = number.toFloat()
-        }
-    }
 
     // Chapter text
 
@@ -129,17 +116,17 @@ abstract class ReadNovelFull : DokushoSource() {
         val document = client.get(getChapterUrl(chapter), headers).asJsoup()
         val body = document.selectFirst(contentSelector)
             ?: return ChapterContent(html = "", title = chapter.name, locked = true)
-        val title = body.selectFirst("h3, h4")?.text()
-        body.select("h3, h4").first()?.remove()
-        body.select("script, style, iframe, ins, noscript, sub, div.ads, .adsbygoogle, div[id^=pf-], div.unlock-buttons").remove()
-        body.select("a, span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
-        body.select("p").filter { WATERMARK.containsMatchIn(it.text()) && it.text().length < 160 }.forEach { it.remove() }
+        // ReadNovelFull and FreeWebNovel open the body with the chapter title as a heading.
+        val heading = body.children().firstOrNull()?.takeIf { it.tagName() == "h3" || it.tagName() == "h4" }
+        val title = heading?.text()
+        heading?.remove()
+        // Unlock buttons mean the rest of the chapter is behind a coin or login gate.
+        if (body.selectFirst("div.unlock-buttons") != null) return ChapterContent(html = "", title = title ?: chapter.name, locked = true)
+        body.select("sub, div.ads, .adsbygoogle, div[id^=pf-]").remove()
+        // ReadNovelFull puts a <br> between every paragraph.
+        body.select("> br").remove()
+        body.sanitizeChapter(imageUrl = { it.imageUrl() })
+        body.select("p").filter { it.text().length < 160 && WATERMARK.containsMatchIn(it.text().unmasked()) }.forEach { it.remove() }
         val html = body.html().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
         return ChapterContent(html = html, title = title ?: chapter.name)
     }
@@ -152,14 +139,28 @@ abstract class ReadNovelFull : DokushoSource() {
 
     // Helpers
 
-    protected fun Element.imageUrl(): String? = absUrl("data-src").ifBlank { absUrl("src") }.takeIf { it.isNotBlank() }
+    /** Undoes watermark disguises: NFKC folds styled letters such as 𝚎, then zero-width marks go and look-alikes map to ASCII. */
+    private fun String.unmasked(): String {
+        val folded = Normalizer.normalize(this, Normalizer.Form.NFKC)
+        return buildString(folded.length) {
+            for (char in folded) {
+                if (char in ZERO_WIDTH) continue
+                val index = HOMOGLYPHS.indexOf(char)
+                append(if (index >= 0) HOMOGLYPH_ASCII[index] else char)
+            }
+        }
+    }
 
-    protected fun Document.metaContent(property: String): String? = selectFirst("meta[property=$property]")?.attr("content")?.takeIf { it.isNotBlank() }
+    private fun Element.imageUrl(): String? = absUrl("data-src").ifBlank { absUrl("src") }.takeIf { it.startsWith("http") }
 
     companion object {
-        private val TRAILING_NUMBER = Regex("""(\d+)\D*$""")
-
         /** Aggregator watermark lines such as "This chapter is updated by freewebnovel.com". */
+        private const val ZERO_WIDTH = "\u00ad\u034f\u180e\u200b\u200c\u200d\u200e\u200f\u2060\u2061\u2062\u2063\u2064\ufeff"
+
+        // Cyrillic and Greek letters that render like Latin ones, paired by position with HOMOGLYPH_ASCII.
+        private const val HOMOGLYPHS = "аеіјорсхуѕԁӏԝһкмтвнАВЕКМНОРСТХІЅЈαβεικνορτυχωΑΒΕΖΗΙΚΜΝΟΡΤΥΧı"
+        private const val HOMOGLYPH_ASCII = "aeijopcxysdlwhkmtbhABEKMHOPCTXISJabeikvoptuxwABEZHIKMNOPTYXi"
+
         private val WATERMARK = Regex("""(free\s*web\s*novel|readnovelfull|novellive|novel\s*bin|novgo|all\s*novel\s*full|novel\s*phoenix)\s*\.\s*(com|app|net)""", RegexOption.IGNORE_CASE)
     }
 }

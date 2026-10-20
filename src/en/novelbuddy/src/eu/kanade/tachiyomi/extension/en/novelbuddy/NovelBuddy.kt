@@ -6,6 +6,8 @@ import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
 import dokusho.utils.parseAs
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -14,12 +16,10 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
-import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -32,8 +32,6 @@ abstract class NovelBuddy : DokushoSource() {
     private val apiUrl = "https://api.novelbuddy.me"
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 3, period = 1.seconds)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -108,7 +106,7 @@ abstract class NovelBuddy : DokushoSource() {
                 this.url = "${chapter.url}?tid=${novel.id}&cid=${chapter.id}"
                 name = chapter.name.replace(INVISIBLE, "").replace(SPACES, " ").trim()
                 chapter.number?.let { chapter_number = it }
-                date_upload = chapter.updatedAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
+                date_upload = parseChapterDate(chapter.updatedAt)
             }
         }
     }
@@ -122,19 +120,15 @@ abstract class NovelBuddy : DokushoSource() {
         val titleId = query.queryParameter("tid")
         val chapterId = query.queryParameter("cid")
         if (titleId == null || chapterId == null) return ChapterContent(html = "", title = chapter.name, locked = true)
-        val content = client.get("$apiUrl/titles/$titleId/chapters/$chapterId", headers)
-            .parseAs<ApiResponse<ChapterData>>().data?.chapter
-        val body = Jsoup.parseBodyFragment(content?.content.orEmpty()).body()
-        body.select("script, style, iframe, br").remove()
-        body.select("a, span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
+        val contentUrl = "$apiUrl/titles".toHttpUrl().newBuilder()
+            .addPathSegment(titleId)
+            .addPathSegment("chapters")
+            .addPathSegment(chapterId)
+            .build()
+        val content = client.get(contentUrl, headers).parseAs<ApiResponse<ChapterData>>().data?.chapter
+        val body = Jsoup.parseBodyFragment(content?.content.orEmpty(), baseUrl).body()
         val title = content?.name?.replace(INVISIBLE, "")?.replace(SPACES, " ")?.trim()
-        val html = body.html().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
+        val html = body.sanitizedChapterHtml().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
         return ChapterContent(html = html, title = title ?: chapter.name)
     }
 

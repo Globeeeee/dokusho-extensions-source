@@ -6,14 +6,17 @@ plugins {
 
 dokusho {
     name = "Novel Fire"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.MIXED
     libVersion = "2.0"
     source {
         lang = "en"
-        baseUrl = "https://novelfire.net"
+        baseUrl = "https://novelphoenix.com"
     }
     deeplink {
+        host("novelphoenix.com")
+        host("novelfire.net")
+        path("/novel/..*")
         path("/book/..*")
     }
 }

@@ -7,16 +7,18 @@ plugins {
 dokusho {
     name = "NovelLive"
     theme = "readnovelfull"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.SAFE
     libVersion = "2.0"
 
     source {
         lang = "en"
-        baseUrl = "https://novellive.app"
+        baseUrl = "https://novellive.com"
     }
 
     deeplink {
+        host("novellive.com")
+        host("novellive.app")
         path("/book/..*")
     }
 }

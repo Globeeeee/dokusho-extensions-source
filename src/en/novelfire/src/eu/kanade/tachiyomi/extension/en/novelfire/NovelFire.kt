@@ -5,32 +5,30 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Novel Fire (the old LightNovelPub/LightNovelWorld catalogue). The site throttles bursts, so requests
- * are kept slow; the chapter list is the `/chapters` TOC at 100 a page.
+ * Novel Fire (the old LightNovelPub/LightNovelWorld catalogue), now served from novelphoenix.com with novels
+ * under `/novel/` instead of `/book/`. The site throttles bursts, so requests are kept slow; the chapter
+ * list is the `/chapters` TOC at 100 a page.
  */
 @Source
 abstract class NovelFire : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 2, period = 2.seconds)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -51,7 +49,7 @@ abstract class NovelFire : DokushoSource() {
     private suspend fun listing(url: String): MangasPage {
         val document = client.get(url, headers).asJsoup()
         val novels = document.select("li.novel-item").mapNotNull { item ->
-            val link = item.selectFirst("a[href*=/book/]") ?: return@mapNotNull null
+            val link = item.selectFirst("a[href*=/novel/]") ?: return@mapNotNull null
             SManga.create().apply {
                 setUrlWithoutDomain(link.absUrl("href"))
                 title = link.attr("title").ifBlank { item.selectFirst(".novel-title")?.text().orEmpty() }
@@ -95,22 +93,28 @@ abstract class NovelFire : DokushoSource() {
 
     private suspend fun fetchChapterList(novelPath: String): List<SChapter> {
         val chapters = mutableListOf<SChapter>()
+        val seen = HashSet<String>()
         var page = 1
         while (page <= MAX_TOC_PAGES) {
-            val document = client.get("$baseUrl${novelPath.trimEnd('/')}/chapters?page=$page", headers).asJsoup()
-            document.select("ul.chapter-list li a[href]").mapTo(chapters) { link ->
+            val document = client.get("$baseUrl${novelPath.toSitePath().trimEnd('/')}/chapters?page=$page", headers).asJsoup()
+            val fresh = document.select("ul.chapter-list li a[href]").map { link ->
                 SChapter.create().apply {
                     setUrlWithoutDomain(link.absUrl("href"))
+                    // Library entries added on novelfire.net keep their /book/ chapter urls so read progress matches.
+                    if (novelPath.startsWith(LEGACY_PREFIX)) url = url.replaceFirst(SITE_PREFIX, LEGACY_PREFIX)
                     name = link.selectFirst(".chapter-title")?.text() ?: link.attr("title")
                     link.selectFirst(".chapter-no")?.text()?.toFloatOrNull()?.let { chapter_number = it }
-                    date_upload = link.selectFirst("time[datetime]")?.attr("datetime")
-                        ?.let { runCatching { DATE_FORMAT.parse(it)?.time }.getOrNull() } ?: 0L
+                    date_upload = parseChapterDate(
+                        link.selectFirst("time[datetime]")?.attr("datetime")?.ifBlank { null }
+                            ?: link.selectFirst("time")?.text(),
+                    )
                 }
-            }
-            if (document.selectFirst("a[rel=next]") == null) break
+            }.filter { seen.add(it.url) }
+            chapters += fresh
+            if (fresh.isEmpty() || document.selectFirst(TOC_NEXT_SELECTOR) == null) break
             page++
         }
-        return chapters.distinctBy { it.url }.reversed()
+        return chapters.reversed()
     }
 
     // Chapter text
@@ -120,33 +124,39 @@ abstract class NovelFire : DokushoSource() {
         val title = document.selectFirst("span.chapter-title")?.text()
         val body = document.selectFirst("div#content")
             ?: return ChapterContent(html = "", title = title ?: chapter.name, locked = true)
-        body.select("script, style, iframe, ins, noscript, .adsbox, .nf-ads").remove()
+        body.select(".adsbox, .nf-ads").remove()
         // Watermark lines are wrapped in random <nf…> tags.
         body.allElements.filter { it.tagName().startsWith("nf", ignoreCase = true) }.forEach { it.remove() }
-        body.select("a, span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
-        val html = body.html().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
+        val html = body.sanitizedChapterHtml().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
         return ChapterContent(html = html, title = title ?: chapter.name)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        if (url.host.removePrefix("www.") != baseUrl.toHttpUrl().host) return null
+        if (url.host.removePrefix("www.") !in setOf(baseUrl.toHttpUrl().host, LEGACY_HOST)) return null
         val segments = url.pathSegments
-        if (segments.size < 2 || segments[0] != "book") return null
-        val manga = SManga.create().apply { this.url = "/book/${segments[1]}" }
+        if (segments.size < 2 || segments[0] !in setOf("novel", "book")) return null
+        val manga = SManga.create().apply { this.url = "$SITE_PREFIX${segments[1]}" }
         return parseDetails(client.get(getMangaUrl(manga), headers).asJsoup(), manga)
     }
+
+    override fun getMangaUrl(manga: SManga): String = baseUrl + manga.url.toSitePath()
+
+    override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url.toSitePath()
+
+    /** Maps a stored novelfire.net `/book/<slug>` url to its novelphoenix.com `/novel/<slug>` path. */
+    private fun String.toSitePath(): String = if (startsWith(LEGACY_PREFIX)) SITE_PREFIX + removePrefix(LEGACY_PREFIX) else this
 
     private fun Element.imageUrl(): String? = absUrl("data-src").ifBlank { absUrl("src") }
         .takeIf { it.isNotBlank() && !it.startsWith("data:") }
 
     companion object {
         private const val MAX_TOC_PAGES = 200
-        private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        private const val LEGACY_HOST = "novelfire.net"
+        private const val LEGACY_PREFIX = "/book/"
+        private const val SITE_PREFIX = "/novel/"
+
+        // The TOC pages with a chapter range pager; listings still use rel=next.
+        private const val TOC_NEXT_SELECTOR =
+            "a[rel=next], .chapter-range-pager a[aria-label^=Next]:not([aria-disabled=true])"
     }
 }

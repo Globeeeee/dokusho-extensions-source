@@ -6,7 +6,7 @@ plugins {
 
 dokusho {
     name = "NovelHi"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.MIXED
     libVersion = "2.0"
     source {

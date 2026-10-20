@@ -5,13 +5,13 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
@@ -28,7 +28,9 @@ abstract class ProjectGutenberg : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(1)
 
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
+    // The last book's cleaned HTML, so consecutive chapters of one book are cut from a single download.
+    @Volatile
+    private var lastBook: Pair<String, Document>? = null
 
     // Listings
 
@@ -109,11 +111,11 @@ abstract class ProjectGutenberg : DokushoSource() {
 
     override suspend fun getChapterContent(chapter: SChapter): ChapterContent {
         val id = BOOK_ID.find(chapter.url)?.groupValues?.get(1)
-            ?: return ChapterContent(html = "", title = chapter.name, locked = true)
+            ?: throw Exception("No Project Gutenberg book id in chapter URL ${chapter.url}")
         val index = chapter.url.substringAfter('#', "0").toIntOrNull() ?: 0
         val document = bookHtml(id)
         val headings = document.select("h2")
-        if (headings.isEmpty()) return ChapterContent(html = document.body().html(), title = chapter.name)
+        if (headings.isEmpty()) return ChapterContent(html = document.body().sanitized(), title = chapter.name)
         // Mark every heading, then cut the body between this chapter's mark and the next.
         headings.forEachIndexed { i, heading -> heading.before("<hr data-chapter=\"$i\">") }
         val html = document.body().html()
@@ -123,17 +125,27 @@ abstract class ProjectGutenberg : DokushoSource() {
         val piece = html.substring(html.indexOf('>', start) + 1, html.lastIndexOf('<', end).coerceAtLeast(start))
         val body = Jsoup.parseBodyFragment(piece).body()
         body.select("h2").first()?.remove()
-        body.select("hr[data-chapter], span.pagenum, a.pginternal").remove()
-        return ChapterContent(html = body.html(), title = chapter.name)
+        body.select("hr[data-chapter], a.pginternal").remove()
+        return ChapterContent(html = body.sanitized(), title = chapter.name)
     }
 
     override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url.substringBefore('#')
 
+    /**
+     * The book's HTML edition. Images are made absolute here, against the edition's own URL, before the text is cut up.
+     * Returns a copy of the cached document, since callers modify it.
+     */
     private suspend fun bookHtml(id: String): Document {
-        val document = client.get("$baseUrl/ebooks/$id.html.images", headers).use { Jsoup.parse(it.body.string(), baseUrl) }
-        document.select("#pg-header, #pg-footer, section.pg-boilerplate, div.pg-boilerplate, script, style").remove()
-        return document
+        lastBook?.let { (cachedId, cached) -> if (cachedId == id) return cached.clone() }
+        val document = client.get("$baseUrl/ebooks/$id.html.images", headers).asJsoup()
+        document.select("#pg-header, #pg-footer, section.pg-boilerplate, div.pg-boilerplate, span.pagenum").remove()
+        document.select("img").forEach { it.attr("src", it.absUrl("src")) }
+        lastBook = id to document
+        return document.clone()
     }
+
+    /** Image sources were made absolute in [bookHtml]; the cut-out fragment has no base URL. */
+    private fun Element.sanitized(): String = sanitizedChapterHtml(imageUrl = { it.attr("src") })
 
     companion object {
         private const val PAGE_SIZE = 25

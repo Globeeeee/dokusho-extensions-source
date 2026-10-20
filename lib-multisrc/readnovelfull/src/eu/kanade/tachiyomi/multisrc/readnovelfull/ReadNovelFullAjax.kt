@@ -39,18 +39,26 @@ abstract class ReadNovelFullAjax : ReadNovelFull() {
 
     override suspend fun fetchChapterList(document: Document, manga: SManga): List<SChapter> {
         val toc = document.selectFirst("#list-chapter[data-novel-id]") ?: return emptyList()
-        val novelId = toc.attr("data-novel-id")
-        val totalPages = toc.attr("data-total-page").toIntOrNull() ?: 1
-        return (1..totalPages).flatMap { page ->
-            val response = client.get("$baseUrl/ajax-chapter-list?novelId=$novelId&page=$page", headers).parseAs<TocPage>()
-            Jsoup.parse(response.html, baseUrl).select("a[href]").map { link ->
-                SChapter.create().apply {
+        val totalPages = (toc.attr("data-total-page").toIntOrNull() ?: 1).coerceAtMost(MAX_TOC_PAGES)
+        val chapters = LinkedHashMap<String, SChapter>()
+        for (page in 1..totalPages) {
+            val url = "$baseUrl/ajax-chapter-list".toHttpUrl().newBuilder()
+                .addQueryParameter("novelId", toc.attr("data-novel-id"))
+                .addQueryParameter("page", page.toString())
+                .build()
+            val links = Jsoup.parse(client.get(url, headers).parseAs<TocPage>().html, baseUrl).select("a[href]")
+            val before = chapters.size
+            links.forEach { link ->
+                val chapter = SChapter.create().apply {
                     setUrlWithoutDomain(link.absUrl("href"))
                     name = link.attr("title").ifBlank { link.text() }.replace(SPACES, " ")
                     CHAPTER_NUMBER.find(name)?.groupValues?.get(1)?.toFloatOrNull()?.let { chapter_number = it }
                 }
+                chapters.putIfAbsent(chapter.url, chapter)
             }
-        }.distinctBy { it.url }.reversed()
+            if (chapters.size == before) break
+        }
+        return chapters.values.reversed()
     }
 
     @Serializable
@@ -59,5 +67,6 @@ abstract class ReadNovelFullAjax : ReadNovelFull() {
     companion object {
         private val CHAPTER_NUMBER = Regex("""^Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
         private val SPACES = Regex("""\s+""")
+        private const val MAX_TOC_PAGES = 1000
     }
 }

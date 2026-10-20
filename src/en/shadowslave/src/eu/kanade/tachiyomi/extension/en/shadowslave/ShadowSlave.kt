@@ -5,13 +5,13 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import okhttp3.Headers
 import okhttp3.OkHttpClient
 
 /**
@@ -22,8 +22,6 @@ import okhttp3.OkHttpClient
 abstract class ShadowSlave : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(2)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     override val supportsLatest get() = false
 
@@ -85,15 +83,8 @@ abstract class ShadowSlave : DokushoSource() {
             ?: return ChapterContent(html = "", title = chapter.name, locked = true)
         val title = document.selectFirst("article h2")?.text()
             ?.removePrefix("Shadow Slave Chapter ")?.substringAfter(" - ")
-        body.select("script, style, iframe, ins, noscript, .adsbygoogle").remove()
-        body.select("a, span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
-        return ChapterContent(html = body.html(), title = title ?: chapter.name)
+        body.select(".adsbygoogle, .chapter-source-note").remove()
+        return ChapterContent(html = body.sanitizedChapterHtml(), title = title ?: chapter.name)
     }
 
     companion object {

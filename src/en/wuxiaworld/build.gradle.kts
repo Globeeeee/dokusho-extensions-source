@@ -6,7 +6,7 @@ plugins {
 
 dokusho {
     name = "WuxiaWorld"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "2.0"
     source {

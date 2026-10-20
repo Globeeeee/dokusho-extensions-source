@@ -5,6 +5,8 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.parseAs
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -12,10 +14,9 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import kotlinx.serialization.Serializable
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import java.time.OffsetDateTime
+import org.jsoup.Jsoup
 
 /**
  * Wattpad's public JSON API. It is served from api.wattpad.com, which also works on networks where
@@ -25,8 +26,6 @@ import java.time.OffsetDateTime
 abstract class Wattpad : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(2)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -67,7 +66,7 @@ abstract class Wattpad : DokushoSource() {
         val storyUrl = "$API/api/v3/stories/$id".toHttpUrl().newBuilder()
             .addQueryParameter(
                 "fields",
-                "id,title,description,cover,user(name),completed,tags,isPaywalled,parts(id,title,url,createDate)",
+                "title,description,cover,user(name),completed,tags,parts(id,title,createDate)",
             )
             .build()
         val story = client.get(storyUrl, headers).parseAs<StoryDto>()
@@ -88,13 +87,12 @@ abstract class Wattpad : DokushoSource() {
         val chapterList = if (!fetchChapters) {
             chapters
         } else {
-            story.parts.mapIndexed { index, part ->
+            story.parts.filter { it.id > 0 }.mapIndexed { index, part ->
                 SChapter.create().apply {
                     url = "/${part.id}"
                     name = part.title
                     chapter_number = (index + 1).toFloat()
-                    date_upload = runCatching { OffsetDateTime.parse(part.createDate).toInstant().toEpochMilli() }
-                        .getOrDefault(0L)
+                    date_upload = parseChapterDate(part.createDate)
                 }
             }.reversed()
         }
@@ -119,10 +117,9 @@ abstract class Wattpad : DokushoSource() {
         if (html.isBlank() || PAYWALL_MARKER in html) {
             return ChapterContent(html = "", title = chapter.name, locked = true)
         }
-        return ChapterContent(html = html, title = chapter.name)
+        val body = Jsoup.parseBodyFragment(html, baseUrl).body()
+        return ChapterContent(html = body.sanitizedChapterHtml(), title = chapter.name)
     }
-
-    override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
 
     // DTOs
 
@@ -138,7 +135,6 @@ abstract class Wattpad : DokushoSource() {
         val user: UserDto? = null,
         val completed: Boolean = false,
         val tags: List<String> = emptyList(),
-        val isPaywalled: Boolean = false,
         val parts: List<PartDto> = emptyList(),
     )
 
@@ -146,7 +142,7 @@ abstract class Wattpad : DokushoSource() {
     private class UserDto(val name: String? = null)
 
     @Serializable
-    private class PartDto(val id: Long, val title: String = "", val url: String = "", val createDate: String = "")
+    private class PartDto(val id: Long = 0, val title: String = "", val createDate: String = "")
 
     companion object {
         private const val API = "https://api.wattpad.com"

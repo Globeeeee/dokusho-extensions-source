@@ -5,6 +5,8 @@ import dokusho.network.get
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -13,17 +15,13 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.Headers
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
+import java.time.ZoneId
 
 /**
  * 小説家になろう (Shousetsuka ni Narou). Listings and details come from the official novel API;
@@ -33,8 +31,6 @@ import java.util.TimeZone
 abstract class Syosetu : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(1)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -56,14 +52,14 @@ abstract class Syosetu : DokushoSource() {
             .addQueryParameter("st", start.toString())
             .apply(params)
             .build()
-        val (total, items) = apiCall(requestUrl.toString())
+        val (total, items) = apiCall(requestUrl)
         return MangasPage(items.map { it.toManga() }, hasNextPage = start + items.size <= total && items.size == PAGE_SIZE)
     }
 
-    private suspend fun apiCall(url: String): Pair<Int, List<JsonObject>> {
+    private suspend fun apiCall(url: HttpUrl): Pair<Int, List<JsonObject>> {
         val array = client.get(url, headers).use { Json.parseToJsonElement(it.body.string()).jsonArray }
-        val total = array.firstOrNull()?.jsonObject?.get("allcount")?.jsonPrimitive?.intOrNull ?: 0
-        return total to array.drop(1).map { it.jsonObject }
+        val total = (array.firstOrNull() as? JsonObject)?.get("allcount")?.jsonPrimitive?.intOrNull ?: 0
+        return total to array.drop(1).mapNotNull { it as? JsonObject }
     }
 
     private fun JsonObject.text(key: String) = get(key)?.jsonPrimitive?.content.orEmpty()
@@ -87,7 +83,12 @@ abstract class Syosetu : DokushoSource() {
         fetchChapters: Boolean,
     ): SMangaUpdate {
         val ncode = manga.url.trim('/')
-        val info = apiCall("$API?out=json&of=$FIELDS&ncode=$ncode").second.firstOrNull()
+        val infoUrl = API.toHttpUrl().newBuilder()
+            .addQueryParameter("out", "json")
+            .addQueryParameter("of", FIELDS)
+            .addQueryParameter("ncode", ncode)
+            .build()
+        val info = apiCall(infoUrl).second.firstOrNull()
             ?: return SMangaUpdate(manga, chapters)
         val details = if (!fetchDetails) {
             manga
@@ -107,7 +108,7 @@ abstract class Syosetu : DokushoSource() {
                     chapter_number = 1f
                 },
             )
-            else -> fetchToc(ncode, info.get("general_all_no")?.jsonPrimitive?.int ?: 0)
+            else -> fetchToc(ncode, info["general_all_no"]?.jsonPrimitive?.intOrNull ?: 0)
         }
         return SMangaUpdate(details, chapterList)
     }
@@ -123,8 +124,10 @@ abstract class Syosetu : DokushoSource() {
                 setUrlWithoutDomain(link.absUrl("href"))
                 name = link.text()
                 chapter_number = (index + 1).toFloat()
-                date_upload = row.selectFirst(".p-eplist__update")?.ownText()?.trim()
-                    ?.let { runCatching { DATE.parse(it)?.time }.getOrNull() } ?: 0L
+                date_upload = parseChapterDate(
+                    row.selectFirst(".p-eplist__update")?.ownText()?.trim(),
+                    ZoneId.of("Asia/Tokyo"),
+                )
             }
         }.reversed()
     }
@@ -136,10 +139,10 @@ abstract class Syosetu : DokushoSource() {
         // The main text, without the author's preface and afterword blocks.
         val parts = document.select("div.js-novel-text.p-novel__text")
             .filterNot { it.hasClass("p-novel__text--preface") || it.hasClass("p-novel__text--afterword") }
-        if (parts.isEmpty()) return ChapterContent(html = "", title = chapter.name, locked = true)
-        parts.forEach { it.select("script, style").remove() }
+        // Syosetu has no paywall, so a missing text block means the page layout changed.
+        if (parts.isEmpty()) throw Exception("Chapter text not found; the site layout may have changed")
         val title = document.selectFirst(".p-novel__title")?.text()
-        return ChapterContent(html = parts.joinToString("") { it.html() }, title = title)
+        return ChapterContent(html = parts.joinToString("") { it.sanitizedChapterHtml(keepBlankParagraphs = true) }, title = title)
     }
 
     companion object {
@@ -147,8 +150,5 @@ abstract class Syosetu : DokushoSource() {
         private const val FIELDS = "t-n-w-s-k-e-nt-ga"
         private const val PAGE_SIZE = 20
         private const val TOC_PAGE_SIZE = 100
-        private val DATE = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.JAPAN).apply {
-            timeZone = TimeZone.getTimeZone("Asia/Tokyo")
-        }
     }
 }

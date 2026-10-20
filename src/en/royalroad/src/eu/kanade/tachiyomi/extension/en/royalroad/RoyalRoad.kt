@@ -6,6 +6,8 @@ import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
 import dokusho.utils.parseAs
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -13,18 +15,14 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import kotlinx.serialization.Serializable
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
-import java.time.OffsetDateTime
 
 @Source
 abstract class RoyalRoad : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(2)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -94,13 +92,14 @@ abstract class RoyalRoad : DokushoSource() {
         val json = document.select("script").firstNotNullOfOrNull { extractArray(it.data(), "window.chapters") }
             ?: return emptyList()
         return json.parseAs<List<ChapterDto>>()
+            .filter { it.url.isNotEmpty() }
             .sortedBy { it.order }
             .map { dto ->
                 SChapter.create().apply {
                     setUrlWithoutDomain(dto.url)
                     name = dto.title
                     chapter_number = (dto.order + 1).toFloat()
-                    date_upload = parseDate(dto.date)
+                    date_upload = parseChapterDate(dto.date)
                 }
             }
             .reversed()
@@ -114,6 +113,10 @@ abstract class RoyalRoad : DokushoSource() {
             response.close()
             return ChapterContent(html = "", locked = true)
         }
+        if (!response.isSuccessful) {
+            response.close()
+            error("HTTP error ${response.code}")
+        }
         val document = response.asJsoup()
         val body = document.selectFirst("div.chapter-inner.chapter-content")
             ?: return ChapterContent(html = "", title = chapter.name, locked = true)
@@ -122,35 +125,22 @@ abstract class RoyalRoad : DokushoSource() {
         val hiddenClasses = document.select("style").flatMap { style ->
             HIDDEN_RULE.findAll(style.data()).map { it.groupValues[1] }
         }.toSet()
-        hiddenClasses.forEach { body.select(".$it").remove() }
-        body.select("[style*=display:none], [style*=display: none]").remove()
-        body.select("script, style, iframe, ins, noscript, .ads, .adsbygoogle").remove()
-        body.select("a").unwrap()
-        body.select("span").unwrap()
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
+        hiddenClasses.forEach { body.getElementsByClass(it).remove() }
+        body.select(".ads, .adsbygoogle").remove()
 
         val title = document.selectFirst(".fic-header h1, h1.font-white")?.text()
-        return ChapterContent(html = body.html(), title = title)
+        return ChapterContent(html = body.sanitizedChapterHtml(), title = title)
     }
 
     // Helpers
 
     @Serializable
     private class ChapterDto(
-        val title: String,
-        val url: String,
+        val title: String = "",
+        val url: String = "",
         val date: String = "",
         val order: Int = 0,
     )
-
-    private fun parseDate(date: String): Long = runCatching {
-        OffsetDateTime.parse(date).toInstant().toEpochMilli()
-    }.getOrDefault(0L)
 
     /** Returns the JSON array assigned to [variable] in [script], respecting strings and nesting. */
     private fun extractArray(script: String, variable: String): String? {

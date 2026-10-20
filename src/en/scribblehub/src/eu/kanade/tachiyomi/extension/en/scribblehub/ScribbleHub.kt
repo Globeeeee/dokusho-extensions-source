@@ -6,28 +6,25 @@ import dokusho.network.post
 import dokusho.network.rateLimit
 import dokusho.source.DokushoSource
 import dokusho.utils.asJsoup
+import dokusho.utils.parseChapterDate
+import dokusho.utils.sanitizedChapterHtml
 import eu.kanade.tachiyomi.source.model.ChapterContent
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import kotlinx.coroutines.CancellationException
 import okhttp3.FormBody
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 @Source
 abstract class ScribbleHub : DokushoSource() {
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(2)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
 
     // Listings
 
@@ -114,25 +111,28 @@ abstract class ScribbleHub : DokushoSource() {
                     .add("X-Requested-With", "XMLHttpRequest")
                     .build()
                 client.post("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, body).asJsoup()
-                    .select("li.toc_w").map(::parseChapter)
-            }.getOrNull()
+                    .select("li.toc_w").mapNotNull(::parseChapter)
+            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
         }
         if (!all.isNullOrEmpty()) return all.sortedByDescending { it.chapter_number }
 
-        val rows = seriesPage.select("li.toc_w").map(::parseChapter).toMutableList()
-        val lastPage = TOC_PAGE.findAll(seriesPage.html()).maxOfOrNull { it.groupValues[1].toInt() } ?: 1
+        val rows = seriesPage.select("li.toc_w").mapNotNull(::parseChapter).toMutableList()
+        val lastPage = TOC_PAGE.findAll(seriesPage.html()).mapNotNull { it.groupValues[1].toIntOrNull() }.maxOrNull() ?: 1
         for (toc in 2..lastPage) {
-            rows += client.get("${getMangaUrl(manga)}?toc=$toc", headers).asJsoup().select("li.toc_w").map(::parseChapter)
+            rows += client.get("${getMangaUrl(manga)}?toc=$toc", headers).asJsoup().select("li.toc_w").mapNotNull(::parseChapter)
         }
         return rows.distinctBy { it.url }.sortedByDescending { it.chapter_number }
     }
 
-    private fun parseChapter(row: Element): SChapter = SChapter.create().apply {
-        val link = row.selectFirst("a.toc_a")!!
-        setUrlWithoutDomain(link.absUrl("href"))
-        name = link.text()
-        chapter_number = row.attr("order").toFloatOrNull() ?: -1f
-        date_upload = parseDate(row.selectFirst(".fic_date_pub")?.attr("title"))
+    private fun parseChapter(row: Element): SChapter? {
+        val link = row.selectFirst("a.toc_a") ?: return null
+        return SChapter.create().apply {
+            setUrlWithoutDomain(link.absUrl("href"))
+            name = link.text()
+            chapter_number = row.attr("order").toFloatOrNull() ?: -1f
+            val date = row.selectFirst(".fic_date_pub")
+            date_upload = parseChapterDate(date?.attr("title")?.ifBlank { null } ?: date?.text())
+        }
     }
 
     // Chapter text
@@ -143,51 +143,21 @@ abstract class ScribbleHub : DokushoSource() {
             response.close()
             return ChapterContent(html = "", locked = true)
         }
+        if (!response.isSuccessful) {
+            response.close()
+            error("HTTP error ${response.code}")
+        }
         val document = response.asJsoup()
         val body = document.selectFirst("#chp_raw")
             ?: return ChapterContent(html = "", title = chapter.name, locked = true)
-        body.select("script, style, iframe, ins, noscript, .wi_authornotes, .chp_byauthor").remove()
-        body.select("[style*=display:none], [style*=display: none]").remove()
-        body.select("a").unwrap()
-        body.select("span").unwrap()
-        // ponytail: tables (stat screens in LitRPG) flatten to text in the reader; render them later.
-        body.allElements.forEach { element ->
-            val src = if (element.tagName() == "img") element.absUrl("src") else null
-            element.clearAttributes()
-            if (!src.isNullOrBlank()) element.attr("src", src)
-        }
-        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
-        return ChapterContent(html = body.html(), title = document.selectFirst(".chapter-title")?.text())
-    }
-
-    // Helpers
-
-    private fun parseDate(text: String?): Long {
-        if (text.isNullOrBlank()) return 0L
-        RELATIVE.find(text)?.let { match ->
-            val amount = match.groupValues[1].toInt()
-            val field = when (match.groupValues[2].lowercase().removeSuffix("s")) {
-                "min", "minute" -> Calendar.MINUTE
-                "hour" -> Calendar.HOUR_OF_DAY
-                "day" -> Calendar.DAY_OF_YEAR
-                "week" -> Calendar.WEEK_OF_YEAR
-                "month" -> Calendar.MONTH
-                "year" -> Calendar.YEAR
-                else -> return 0L
-            }
-            return Calendar.getInstance().apply { add(field, -amount) }.timeInMillis
-        }
-        return runCatching { DATE_TIME.parse(text)?.time }.getOrNull()
-            ?: runCatching { DATE.parse(text)?.time }.getOrNull()
-            ?: 0L
+        body.select(".wi_authornotes, .chp_byauthor").remove()
+        // ponytail: tables (stat screens in LitRPG) become one paragraph per cell; render them later.
+        return ChapterContent(html = body.sanitizedChapterHtml(), title = document.selectFirst(".chapter-title")?.text())
     }
 
     companion object {
         private val SERIES_ID = Regex("""/series/(\d+)/""")
         private val TOC_PAGE = Regex("""[?&]toc=(\d+)""")
         private val STATUS = Regex("""^(Ongoing|Completed|Hiatus|Dropped)\b""")
-        private val RELATIVE = Regex("""(\d+)\s+(mins?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago""", RegexOption.IGNORE_CASE)
-        private val DATE_TIME = SimpleDateFormat("MMM d, yyyy hh:mm a", Locale.ENGLISH)
-        private val DATE = SimpleDateFormat("MMM d, yyyy", Locale.ENGLISH)
     }
 }

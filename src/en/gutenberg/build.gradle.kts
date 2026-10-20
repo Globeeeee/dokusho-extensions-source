@@ -6,7 +6,7 @@ plugins {
 
 dokusho {
     name = "Project Gutenberg"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.SAFE
     libVersion = "2.0"
     source {

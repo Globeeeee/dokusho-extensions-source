@@ -3,6 +3,6 @@ plugins {
 }
 
 dokusho {
-    baseVersionCode = 1
+    baseVersionCode = 2
     libVersion = "2.0"
 }
