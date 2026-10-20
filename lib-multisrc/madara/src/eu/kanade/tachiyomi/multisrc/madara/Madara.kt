@@ -1,0 +1,170 @@
+package eu.kanade.tachiyomi.multisrc.madara
+
+import dokusho.network.get
+import dokusho.network.post
+import dokusho.network.rateLimit
+import dokusho.source.DokushoSource
+import dokusho.utils.asJsoup
+import eu.kanade.tachiyomi.source.model.ChapterContent
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import okhttp3.FormBody
+import okhttp3.Headers
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import java.text.SimpleDateFormat
+import java.util.Locale
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * WordPress sites on the Madara theme with text chapters (wuxiaworld.site, lightnovelheaven.com).
+ * Children set [novelPath], the URL segment novels live under.
+ */
+abstract class Madara : DokushoSource() {
+
+    protected open val novelPath = "novel"
+
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(permits = 3, period = 2.seconds)
+
+    override fun Headers.Builder.configureHeaders(): Headers.Builder = add("Referer", "$baseUrl/")
+
+    // Listings
+
+    override suspend fun getPopularManga(page: Int): MangasPage = listing(archiveUrl(page, "views"), "div.page-item-detail")
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage = listing(archiveUrl(page, "latest"), "div.page-item-detail")
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage = listing(
+        baseUrl.toHttpUrl().newBuilder()
+            .apply { if (page > 1) addPathSegments("page/$page/") }
+            .addQueryParameter("s", query)
+            .addQueryParameter("post_type", "wp-manga")
+            .build()
+            .toString(),
+        "div.c-tabs-item__content",
+    )
+
+    private fun archiveUrl(page: Int, order: String): String {
+        val pagePath = if (page > 1) "page/$page/" else ""
+        return "$baseUrl/$novelPath/$pagePath?m_orderby=$order"
+    }
+
+    private suspend fun listing(url: String, itemSelector: String): MangasPage {
+        val document = client.get(url, headers).asJsoup()
+        val novels = document.select(itemSelector).mapNotNull { item ->
+            val link = item.selectFirst("div.post-title a[href]") ?: return@mapNotNull null
+            SManga.create().apply {
+                setUrlWithoutDomain(link.absUrl("href"))
+                title = link.text()
+                thumbnail_url = item.selectFirst("img")?.imageUrl()
+            }
+        }
+        val hasNext = novels.isNotEmpty() && document.selectFirst("nav.navigation-ajax, div.nav-previous a, a.nextpostslink") != null
+        return MangasPage(novels, hasNext)
+    }
+
+    // Details and chapters
+
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val document = client.get(getMangaUrl(manga), headers).asJsoup()
+        val details = if (fetchDetails) parseDetails(document, manga) else manga
+        val chapterList = if (fetchChapters) fetchChapterList(document, manga) else chapters
+        return SMangaUpdate(details, chapterList)
+    }
+
+    private fun parseDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
+        url = manga.url
+        title = document.selectFirst("div.post-title h1")?.apply { select("span").remove() }?.text() ?: manga.title
+        thumbnail_url = document.selectFirst("div.summary_image img")?.imageUrl() ?: manga.thumbnail_url
+        author = document.select("div.author-content a").eachText().joinToString()
+        genre = document.select("div.genres-content a").eachText().joinToString()
+        description = document.selectFirst("div.summary__content, div.description-summary")?.let { summary ->
+            summary.select("p").eachText().joinToString("\n\n").ifBlank { summary.text() }
+        }
+        val statusText = document.selectFirst("div.post-content_item:has(h5:contains(Status)) div.summary-content")?.text().orEmpty()
+        status = when {
+            statusText.contains("ongoing", ignoreCase = true) -> SManga.ONGOING
+            statusText.contains("completed", ignoreCase = true) -> SManga.COMPLETED
+            statusText.contains("hiatus", ignoreCase = true) || statusText.contains("on hold", ignoreCase = true) -> SManga.ON_HIATUS
+            statusText.contains("cancel", ignoreCase = true) || statusText.contains("dropped", ignoreCase = true) -> SManga.CANCELLED
+            else -> SManga.UNKNOWN
+        }
+        initialized = true
+    }
+
+    private suspend fun fetchChapterList(document: Document, manga: SManga): List<SChapter> {
+        val ajaxHeaders = headers.newBuilder().add("X-Requested-With", "XMLHttpRequest").build()
+        var items = document.select("li.wp-manga-chapter")
+        if (items.isEmpty()) {
+            val novelUrl = getMangaUrl(manga).trimEnd('/')
+            items = client.post("$novelUrl/ajax/chapters/", ajaxHeaders, FormBody.Builder().build(), ensureSuccess = false)
+                .asJsoup().select("li.wp-manga-chapter")
+        }
+        if (items.isEmpty()) {
+            val postId = document.selectFirst("#manga-chapters-holder[data-id]")?.attr("data-id")
+            if (!postId.isNullOrBlank()) {
+                val body = FormBody.Builder().add("action", "manga_get_chapters").add("manga", postId).build()
+                items = client.post("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, body, ensureSuccess = false)
+                    .asJsoup().select("li.wp-manga-chapter")
+            }
+        }
+        return items.mapNotNull { item ->
+            val link = item.selectFirst("a[href]") ?: return@mapNotNull null
+            SChapter.create().apply {
+                setUrlWithoutDomain(link.absUrl("href"))
+                name = link.text().replace(INVISIBLE, "").replace(SPACES, " ").trim()
+                CHAPTER_NUMBER.find(name)?.groupValues?.get(1)?.toFloatOrNull()?.let { chapter_number = it }
+                date_upload = item.selectFirst("span.chapter-release-date i")?.text()
+                    ?.let { runCatching { DATE_FORMAT.parse(it)?.time }.getOrNull() } ?: 0L
+            }
+        }
+    }
+
+    // Chapter text
+
+    override suspend fun getChapterContent(chapter: SChapter): ChapterContent {
+        val document = client.get(getChapterUrl(chapter), headers).asJsoup()
+        val title = document.selectFirst("#chapter-heading")?.text()
+        val body = document.selectFirst("div.reading-content div.text-left, div.reading-content")
+            ?: return ChapterContent(html = "", title = title ?: chapter.name, locked = true)
+        body.select("script, style, iframe, ins, noscript, input, .adsbygoogle, div.ads, div.code-block").remove()
+        body.select("a, span").unwrap()
+        body.allElements.forEach { element ->
+            val src = if (element.tagName() == "img") element.imageUrl() else null
+            element.clearAttributes()
+            if (!src.isNullOrBlank()) element.attr("src", src)
+        }
+        body.select("p").filter { it.text().isBlank() && it.select("img").isEmpty() }.forEach { it.remove() }
+        val html = body.html().ifBlank { return ChapterContent(html = "", title = title ?: chapter.name, locked = true) }
+        return ChapterContent(html = html, title = title ?: chapter.name)
+    }
+
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host.removePrefix("www.") != baseUrl.toHttpUrl().host.removePrefix("www.")) return null
+        val segments = url.pathSegments.filter { it.isNotBlank() }
+        if (segments.size < 2 || segments[0] != novelPath) return null
+        val manga = SManga.create().apply { this.url = "/$novelPath/${segments[1]}/" }
+        return parseDetails(client.get(getMangaUrl(manga), headers).asJsoup(), manga)
+    }
+
+    protected fun Element.imageUrl(): String? = listOf("data-src", "data-lazy-src", "src").map(::absUrl)
+        .firstOrNull { it.isNotBlank() && "dflazy" !in it && !it.startsWith("data:") }
+
+    companion object {
+        private val INVISIBLE = Regex("[\u200b\u200c\u200d\ufeff]")
+        private val SPACES = Regex("""\s+""")
+        private val CHAPTER_NUMBER = Regex("""Chapter\s+(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE)
+        private val DATE_FORMAT = SimpleDateFormat("MMMM d, yyyy", Locale.US)
+    }
+}

@@ -19,7 +19,7 @@ import org.jsoup.nodes.Element
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Sites on the ReadNovelFull engine (readnovelfull.com, freewebnovel.com, novellive.app, novgo.net). Listing rows,
+ * Sites on the ReadNovelFull engine (readnovelfull.com, freewebnovel.com, novellive.app, novgo.net, novelphoenix.net). Listing rows,
  * the info block and the chapter body share markup; children set the listing paths and how the
  * chapter list is paged.
  */
@@ -160,6 +160,6 @@ abstract class ReadNovelFull : DokushoSource() {
         private val TRAILING_NUMBER = Regex("""(\d+)\D*$""")
 
         /** Aggregator watermark lines such as "This chapter is updated by freewebnovel.com". */
-        private val WATERMARK = Regex("""(free\s*web\s*novel|readnovelfull|novellive|novel\s*bin|novgo|all\s*novel\s*full)\s*\.\s*(com|app|net)""", RegexOption.IGNORE_CASE)
+        private val WATERMARK = Regex("""(free\s*web\s*novel|readnovelfull|novellive|novel\s*bin|novgo|all\s*novel\s*full|novel\s*phoenix)\s*\.\s*(com|app|net)""", RegexOption.IGNORE_CASE)
     }
 }
