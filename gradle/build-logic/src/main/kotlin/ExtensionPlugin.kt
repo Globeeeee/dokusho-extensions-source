@@ -20,6 +20,7 @@ import app.dokusho.gradle.tasks.GenerateManifestTask
 import app.dokusho.gradle.tasks.GenerateSourceInfoTask
 import app.dokusho.gradle.tasks.SignExtensionJarTask
 import com.android.build.api.artifact.ScopedArtifact
+import com.android.build.api.attributes.BuildTypeAttr
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
@@ -178,6 +179,8 @@ class ExtensionPlugin : Plugin<Project> {
             isCanBeConsumed = false
             isCanBeResolved = true
             extendsFrom(configurations.getByName("compileOnly"))
+            // :extensions-lib is a local Android module with debug and release variants; pick one.
+            attributes.attribute(BuildTypeAttr.ATTRIBUTE, objects.named(BuildTypeAttr::class.java, "release"))
         }
 
         val signingConfig = extensions.getByType(ApplicationExtension::class.java).signingConfigs
